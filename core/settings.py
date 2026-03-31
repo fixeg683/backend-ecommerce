@@ -9,7 +9,7 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 # ... Allowed Hosts ...
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app', 'https://your-frontend-name.vercel.app',]
 
 # --- Database Configuration ---
 # This parses the DATABASE_URL from .env and adds SSL requirements
