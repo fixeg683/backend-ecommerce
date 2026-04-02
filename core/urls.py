@@ -6,20 +6,24 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from api.views import api_root  # Import the new welcome view
 
 urlpatterns = [
-    # 1. Django Admin Login - FIXED LINE BELOW
-    path('admin/', admin.site.urls), 
+    # 1. Home / Root Path (Fixes the 404 on the main URL)
+    path('', api_root, name='api-root'),
 
-    # 2. JWT Authentication Endpoints
+    # 2. Django Admin Login
+    path('admin/', admin.site.urls),
+
+    # 3. JWT Authentication Endpoints (For Login)
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # 3. Your Custom App Endpoints
+    # 4. Your Custom App Endpoints
     path('api/', include('api.urls')), 
 ]
 
-# 4. Serve Media and Static Files
+# 5. Serve Media and Static Files (Only for Local Debugging)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

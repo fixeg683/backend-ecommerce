@@ -7,13 +7,29 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import Product, Order
 from .serializers import ProductSerializer, OrderSerializer
-from .mpesa_utils import send_stk_push
+# from .mpesa_utils import send_stk_push  # Uncomment once this file exists
+
+# --- 0. API Welcome Root ---
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_root(request):
+    """
+    Shows a welcome message at the base URL so users don't see a 404.
+    """
+    return Response({
+        "status": "Online",
+        "message": "Welcome to the Backend E-commerce API",
+        "endpoints": {
+            "admin": "/admin/",
+            "products": "/api/products/",
+            "auth_token": "/api/token/"
+        }
+    })
 
 # --- 1. Product Management ---
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Handles listing products and retrieving a single product.
-    Note: Creation/Updates are done via Django Admin as per requirements.
     """
     queryset = Product.objects.all().order_by('-created_at')
     serializer_class = ProductSerializer
@@ -41,9 +57,6 @@ def register_user(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def initiate_payment(request):
-    """
-    Expects: { "phone": "2547XXXXXXXX", "amount": 100 }
-    """
     user = request.user
     phone = request.data.get('phone')
     amount = request.data.get('amount')
@@ -51,7 +64,6 @@ def initiate_payment(request):
     if not phone or not amount:
         return Response({"detail": "Phone and amount are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 1. Create a Pending Order in our DB
     order = Order.objects.create(
         user=user, 
         total_amount=amount, 
@@ -59,56 +71,38 @@ def initiate_payment(request):
         status='Pending'
     )
 
-    # 2. Trigger Safaricom API
+    # Note: Ensure mpesa_utils.py is configured before using send_stk_push
     try:
-        mpesa_response = send_stk_push(phone, amount, order.id)
-        
-        if mpesa_response.get('ResponseCode') == '0':
-            # Save the CheckoutRequestID to match the callback later
-            order.checkout_request_id = mpesa_response.get('CheckoutRequestID')
-            order.save()
-            return Response({
-                "message": "STK Push sent successfully",
-                "checkout_id": order.checkout_request_id
-            }, status=status.HTTP_200_OK)
-        else:
-            order.status = 'Failed'
-            order.save()
-            return Response({"detail": "M-Pesa Gateway Error"}, status=status.HTTP_400_BAD_REQUEST)
-            
+        # mpesa_response = send_stk_push(phone, amount, order.id)
+        # Placeholder logic for testing without the M-Pesa API key
+        return Response({
+            "message": "Order created. Connect M-Pesa API to trigger STK Push.",
+            "order_id": order.id
+        }, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"detail": f"Internal Server Error: {str(e)}"}, status=500)
+        return Response({"detail": f"Internal Error: {str(e)}"}, status=500)
 
 # --- 4. Payment: M-Pesa Callback ---
 @api_view(['POST'])
-@permission_classes([AllowAny]) # Safaricom doesn't send JWTs
+@permission_classes([AllowAny])
 def mpesa_callback(request):
-    """
-    This endpoint is hit by Safaricom's servers asynchronously.
-    """
     data = request.data.get('Body', {}).get('stkCallback', {})
     result_code = data.get('ResultCode')
     checkout_request_id = data.get('CheckoutRequestID')
 
     try:
         order = Order.objects.get(checkout_request_id=checkout_request_id)
-        
         if result_code == 0:
-            # Payment Successful
             order.status = 'Completed'
             order.is_paid = True
-            # Extract receipt number if needed
             items = data.get('CallbackMetadata', {}).get('Item', [])
             for item in items:
                 if item.get('Name') == 'MpesaReceiptNumber':
                     order.transaction_id = item.get('Value')
         else:
-            # Payment Cancelled or Failed
             order.status = 'Failed'
-        
         order.save()
     except Order.DoesNotExist:
-        # Log this error; might be a delayed callback or fake request
         pass
 
     return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
