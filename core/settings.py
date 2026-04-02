@@ -6,27 +6,15 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ... Base Directory and Secret Key ...
 SECRET_KEY = config('SECRET_KEY')
-
-# DEBUG should be False in production
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-# Render provides a dynamic hostname, so we allow it via environment variable
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+# ... Allowed Hosts ...
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app']
 
-# --- WhiteNoise for Static Files ---
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Add this right after SecurityMiddleware
-    'corsheaders.middleware.CorsMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    # ... rest of middleware
-]
-
-# --- Database ---
+# --- Database Configuration ---
+# This parses the DATABASE_URL from .env and adds SSL requirements
 DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL'),
@@ -34,13 +22,24 @@ DATABASES = {
         ssl_require=True
     )
 }
-DATABASES['default']['OPTIONS'] = {'sslmode': 'require'}
 
-# --- Static & Media Files ---
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Add explicit SSL options for PostgreSQL
+DATABASES['default']['OPTIONS'] = {
+    'sslmode': 'require',
+}
 
-MEDIA_URL = '/media/'
-# Note: Render's disk is ephemeral. For production images, use Cloudinary or S3.
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# --- Rest Framework & JWT ---
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# ... Rest of your settings (Middleware, Apps, etc.) ...
