@@ -7,30 +7,25 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import Product, Order
 from .serializers import ProductSerializer, OrderSerializer
-# from .mpesa_utils import send_stk_push  # Uncomment once this file exists
 
 # --- 0. API Welcome Root ---
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def api_root(request):
-    """
-    Shows a welcome message at the base URL so users don't see a 404.
-    """
     return Response({
         "status": "Online",
         "message": "Welcome to the Backend E-commerce API",
         "endpoints": {
             "admin": "/admin/",
             "products": "/api/products/",
-            "auth_token": "/api/token/"
+            "auth_token": "/api/token/",
+            "register": "/api/register/",
+            "me": "/api/users/me/",
         }
     })
 
 # --- 1. Product Management ---
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Handles listing products and retrieving a single product.
-    """
     queryset = Product.objects.all().order_by('-created_at')
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
@@ -40,20 +35,52 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
 @permission_classes([AllowAny])
 def register_user(request):
     data = request.data
-    try:
-        if User.objects.filter(username=data.get('username')).exists():
-            return Response({"detail": "Username already taken"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user = User.objects.create_user(
-            username=data.get('username'),
-            email=data.get('email'),
-            password=data.get('password')
+    # Accept either 'name' (from frontend) or 'username' (fallback)
+    name = data.get('name') or data.get('username', '')
+    email = data.get('email', '')
+    password = data.get('password', '')
+
+    if not name or not email or not password:
+        return Response(
+            {"detail": "Name, email and password are required."},
+            status=status.HTTP_400_BAD_REQUEST
         )
-        return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
+
+    # Use email as username so JWT login works with email
+    if User.objects.filter(username=email).exists():
+        return Response(
+            {"detail": "An account with this email already exists."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.create_user(
+            username=email,       # use email as username
+            email=email,
+            password=password,
+            first_name=name.split()[0],
+            last_name=' '.join(name.split()[1:]) if len(name.split()) > 1 else ''
+        )
+        return Response(
+            {"message": "Account created successfully."},
+            status=status.HTTP_201_CREATED
+        )
     except Exception as e:
         return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# --- 3. Payment: Initiate M-Pesa STK Push ---
+# --- 3. Current User Profile ---
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    user = request.user
+    return Response({
+        "id": user.id,
+        "name": f"{user.first_name} {user.last_name}".strip() or user.username,
+        "email": user.email,
+        "username": user.username,
+    })
+
+# --- 4. Payment: Initiate M-Pesa STK Push ---
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def initiate_payment(request):
@@ -62,27 +89,24 @@ def initiate_payment(request):
     amount = request.data.get('amount')
 
     if not phone or not amount:
-        return Response({"detail": "Phone and amount are required"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"detail": "Phone and amount are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     order = Order.objects.create(
-        user=user, 
-        total_amount=amount, 
+        user=user,
+        total_amount=amount,
         phone=phone,
         status='Pending'
     )
 
-    # Note: Ensure mpesa_utils.py is configured before using send_stk_push
-    try:
-        # mpesa_response = send_stk_push(phone, amount, order.id)
-        # Placeholder logic for testing without the M-Pesa API key
-        return Response({
-            "message": "Order created. Connect M-Pesa API to trigger STK Push.",
-            "order_id": order.id
-        }, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"detail": f"Internal Error: {str(e)}"}, status=500)
+    return Response({
+        "message": "Order created. Connect M-Pesa API to trigger STK Push.",
+        "order_id": order.id
+    }, status=status.HTTP_200_OK)
 
-# --- 4. Payment: M-Pesa Callback ---
+# --- 5. Payment: M-Pesa Callback ---
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def mpesa_callback(request):
@@ -107,7 +131,7 @@ def mpesa_callback(request):
 
     return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
-# --- 5. Order History ---
+# --- 6. Order History ---
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_orders(request):
