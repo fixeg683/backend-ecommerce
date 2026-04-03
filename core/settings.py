@@ -8,10 +8,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 2. SECURITY
-SECRET_KEY = config('SECRET_KEY')
+# Ensure these are set in your Render Environment Variables
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-# 3. ALLOWED HOSTS (Added Render wildcards)
+# 3. ALLOWED HOSTS
+# Includes Render defaults and your specific backend URL
 ALLOWED_HOSTS = [
     'localhost', 
     '127.0.0.1', 
@@ -33,15 +35,15 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     
-    # Your Apps (Ensure these match your folder names)
+    # Your Apps
     'api', 
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # For static files on Render
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Critical for Render static files
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Must be above CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware', # Position is critical: Above CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -49,12 +51,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'core.urls' # Ensure 'core' matches your project folder name
+ROOT_URLCONF = 'core.urls' 
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -69,7 +71,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 5. DATABASE (Supabase via dj-database-url)
+# 5. DATABASE (Supabase Connection)
+# This uses the DATABASE_URL from your Render environment variables
 DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL'),
@@ -78,7 +81,7 @@ DATABASES = {
     )
 }
 
-# Explicit SSL for Supabase
+# Explicit SSL requirement for Supabase/PostgreSQL
 DATABASES['default']['OPTIONS'] = {
     'sslmode': 'require',
 }
@@ -104,28 +107,39 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 # 7. INTERNATIONALIZATION
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Nairobi' # Set to your local time zone
 USE_I18N = True
 USE_TZ = True
 
-# 8. STATIC & MEDIA FILES (WhiteNoise Setup)
+# 8. STATIC & MEDIA FILES
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Use WhiteNoise to serve static files efficiently on Render
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# 9. CORS & CSRF (For Vercel Frontend)
-CORS_ALLOW_ALL_ORIGINS = True # Change to specific Vercel URL in production
+# 9. CORS & CSRF (Crucial for Vercel Frontend)
+# This solves the "Blocked by CORS policy" error you saw in the console
+CORS_ALLOW_ALL_ORIGINS = True 
+
+# If you want to be stricter later, uncomment and use:
+# CORS_ALLOWED_ORIGINS = [
+#     "https://ecommerce-frontend-7fcl.vercel.app",
+# ]
+
 CSRF_TRUSTED_ORIGINS = [
     'https://backend-ecommerce-3-href.onrender.com',
-    'https://*.onrender.com'
+    'https://*.onrender.com',
+    'https://ecommerce-frontend-7fcl.vercel.app'
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
