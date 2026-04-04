@@ -1,5 +1,4 @@
 cloudinary==1.44.1
-dj-database_url==0.5.0
 django==5.0.4
 django-cloudinary-storage==0.3.0
 djangorestframework==3.15.1

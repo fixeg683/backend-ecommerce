@@ -1,5 +1,6 @@
 import os
 import dj_database_url
+import cloudinary
 from datetime import timedelta
 from decouple import config
 from pathlib import Path
@@ -13,9 +14,9 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 # 3. ALLOWED HOSTS
 ALLOWED_HOSTS = [
-    'localhost', 
-    '127.0.0.1', 
-    '.onrender.com', 
+    'localhost',
+    '127.0.0.1',
+    '.onrender.com',
     'backend-ecommerce-3-href.onrender.com'
 ]
 
@@ -26,22 +27,26 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+
+    # Cloudinary — must be before staticfiles
+    'cloudinary_storage',
     'django.contrib.staticfiles',
-    
-    # Third Party Apps
+    'cloudinary',
+
+    # Third Party
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    
+
     # Your Apps
-    'api', 
+    'api',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', 
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Above CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -49,7 +54,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'core.urls' 
+ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
     {
@@ -69,7 +74,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 5. DATABASE (Supabase Connection)
+# 5. DATABASE (Supabase)
 DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL'),
@@ -77,8 +82,6 @@ DATABASES = {
         ssl_require=True
     )
 }
-
-# Explicit SSL requirement for Supabase
 DATABASES['default']['OPTIONS'] = {
     'sslmode': 'require',
 }
@@ -100,7 +103,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Fix for session logout: Increased access lifetime
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -111,25 +113,36 @@ SIMPLE_JWT = {
 
 # 7. INTERNATIONALIZATION
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Africa/Nairobi' 
+TIME_ZONE = 'Africa/Nairobi'
 USE_I18N = True
 USE_TZ = True
 
-# 8. STATIC & MEDIA FILES
+# 8. STATIC FILES (WhiteNoise)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# 9. MEDIA FILES → Cloudinary
+# Get free credentials at cloudinary.com → Dashboard
+cloudinary.config(
+    cloud_name=config('doejml3fq'),
+    api_key=config('769536441127471'),
+    api_secret=config('B4H-tSbOXBOQjHHfs5Egku7tPVE'),
+)
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Keep these as fallback for local dev
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# 9. CORS & CSRF
-CORS_ALLOW_ALL_ORIGINS = True 
+# 10. CORS & CSRF
+CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = [
     'https://backend-ecommerce-3-href.onrender.com',
     'https://*.onrender.com',
-    'https://ecommerce-frontend-7fcl.vercel.app'
+    'https://*.vercel.app',  # covers all your Vercel deployments
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
