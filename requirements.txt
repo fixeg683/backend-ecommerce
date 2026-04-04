@@ -1,5 +1,7 @@
-dj-database_url
+cloudinary==1.44.1
+dj-database_url==0.5.0
 django==5.0.4
+django-cloudinary-storage==0.3.0
 djangorestframework==3.15.1
 django-cors-headers==4.3.1
 djangorestframework-simplejwt==5.3.1
@@ -9,7 +11,7 @@ python-decouple==3.8
 dj-database-url==2.1.0
 gunicorn==21.2.0
 whitenoise==6.6.0
-Pillow==10.4.0
+Pillow==10.2.0
 
 
 
