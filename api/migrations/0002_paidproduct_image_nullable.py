@@ -1,10 +1,8 @@
 # api/migrations/0002_paidproduct_image_nullable.py
 
 import django.db.models.deletion
-import cloudinary_storage.storage
 from django.conf import settings
 from django.db import migrations, models
-import django.core.validators
 
 
 class Migration(migrations.Migration):
@@ -26,22 +24,9 @@ class Migration(migrations.Migration):
             ),
         ),
 
-        # 2. Add the 'file' field (Missing in your version)
-        migrations.AddField(
-            model_name='product',
-            name='file',
-            field=models.FileField(
-                blank=True,
-                null=True,
-                storage=cloudinary_storage.storage.RawMediaCloudinaryStorage(),
-                upload_to='products/files/',
-                validators=[django.core.validators.FileExtensionValidator(
-                    allowed_extensions=['exe', 'zip', 'dmg', 'sh', 'bin', 'msi']
-                )],
-            ),
-        ),
+        # ✅ REMOVED duplicate 'file' field (THIS FIXES YOUR ERROR)
 
-        # 3. Create PaidProduct model
+        # 2. Create PaidProduct model
         migrations.CreateModel(
             name='PaidProduct',
             fields=[
