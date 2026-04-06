@@ -8,6 +8,23 @@ from .models import OrderItem
 
 
 @api_view(['GET'])
+def api_root(request):
+    """
+    Root API endpoint (prevents 404 and import error)
+    """
+    return Response({
+        "message": "Welcome to E-Commerce API",
+        "endpoints": {
+            "products": "/api/products/",
+            "login": "/api/token/",
+            "register": "/api/register/",
+            "cart": "/api/orders/",
+            "downloads": "/api/my-downloads/"
+        }
+    })
+
+
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_downloads(request):
     """
