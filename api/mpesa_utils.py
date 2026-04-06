@@ -1,16 +1,27 @@
-import requests, base64
+import requests
+import base64
 from datetime import datetime
 from django.conf import settings
 
 def get_access_token():
     url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-    res = requests.get(url, auth=(settings.MPESA_CONSUMER_KEY, settings.MPESA_CONSUMER_SECRET))
-    return res.json().get('access_token')
+    try:
+        res = requests.get(url, auth=(settings.MPESA_CONSUMER_KEY, settings.MPESA_CONSUMER_SECRET))
+        res.raise_for_status()
+        return res.json().get('access_token')
+    except Exception as e:
+        print(f"Error getting M-Pesa token: {e}")
+        return None
 
-def send_stk_push(phone, amount, order_id):
+# Rename this or alias it to match your views.py import
+def initiate_mpesa_payment(phone, amount, order_id):
     token = get_access_token()
+    if not token:
+        return {"error": "Could not authenticate with Safaricom"}
+
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    password = base64.b64encode(f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}".encode()).decode()
+    password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
+    password = base64.b64encode(password_str.encode()).decode()
     
     payload = {
         "BusinessShortCode": settings.MPESA_SHORTCODE,
@@ -25,6 +36,24 @@ def send_stk_push(phone, amount, order_id):
         "AccountReference": f"INV{order_id}",
         "TransactionDesc": "Ecom Payment"
     }
+    
     headers = {"Authorization": f"Bearer {token}"}
-    response = requests.post("https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest", json=payload, headers=headers)
-    return response.json()
+    
+    try:
+        response = requests.post(
+            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest", 
+            json=payload, 
+            headers=headers
+        )
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+# Added this to prevent the "cannot import verify_mpesa_payment" error
+def verify_mpesa_payment(checkout_request_id):
+    """
+    Placeholder for M-Pesa Query request to check status
+    """
+    token = get_access_token()
+    # Add Daraja Query logic here if needed
+    return {"status": "Processing"}
