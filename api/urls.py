@@ -21,5 +21,7 @@ urlpatterns = [
 
     # DOWNLOAD SYSTEM (FIXED)
     path('my-downloads/', views.my_downloads),
+    # Alias to fix the 404 error seen in your console:
+    path('my-paid-products/', views.my_downloads), 
     path('download/<int:product_id>/', views.download_product),
 ]

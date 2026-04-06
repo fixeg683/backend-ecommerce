@@ -8,7 +8,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 2. SECURITY
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-your-unique-random-string-here')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 # 3. ALLOWED HOSTS
@@ -16,7 +16,7 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '.onrender.com',
-    'backend-ecommerce-3-href.onrender.com'
+    'backend-ecommerce-3-href.onrender.com',
 ]
 
 # 4. APP DEFINITION
@@ -43,9 +43,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # For static files on Render
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # Must be before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -73,7 +73,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 5. DATABASE
+# 5. DATABASE (Supabase Connection Pooler Optimization)
 DATABASE_URL = config('DATABASE_URL', default=None)
 
 if DATABASE_URL:
@@ -105,13 +105,14 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+        # AllowAny allows the product list to load on the frontend without a login
+        'rest_framework.permissions.AllowAny', 
     ],
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('ACCESS_TOKEN_LIFETIME_MINUTES', default=60, cast=int)),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=config('REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': False,
     'AUTH_HEADER_TYPES': ('Bearer',),
@@ -129,45 +130,46 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # 9. MEDIA FILES (Cloudinary Storage)
-import cloudinary
-
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
-    'API_KEY': config('CLOUDINARY_API_KEY', default=''),
-    'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': config('CLOUDINARY_API_KEY'),
+    'API_SECRET': config('CLOUDINARY_API_SECRET'),
 }
 
-# This setting handles standard ImageField uploads
+# Default storage for standard images
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# 10. CORS & CSRF
-CORS_ALLOW_ALL_ORIGINS = True
+# 10. CORS & CSRF (Fixed for Vercel Frontend)
+CORS_ALLOW_ALL_ORIGINS = True  # Set to True to resolve local/Vercel connection issues
+CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     'https://backend-ecommerce-3-href.onrender.com',
-    'https://*.onrender.com',
+    'https://e-spaceapp.vercel.app',
     'https://*.vercel.app',
 ]
 
 # 11. M-PESA DARAJA API
 MPESA_ENV = config('MPESA_ENV', default='sandbox')
-MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
-MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET', default='')
+MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET')
 MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='174379')
-MPESA_PASSKEY = config(
-    'MPESA_PASSKEY',
-    default='bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
-)
+MPESA_PASSKEY = config('MPESA_PASSKEY')
 
 if MPESA_ENV == 'sandbox':
     MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke'
 else:
     MPESA_BASE_URL = 'https://api.safaricom.co.ke'
 
-# BASE_URL of your deployed backend
+# BASE_URL of your deployed backend for M-Pesa callbacks
 BASE_URL = config('BASE_URL', default='https://backend-ecommerce-3-href.onrender.com')
+
+# --- Admin Settings ---
+ADMIN_USERNAME = config('ADMIN_USERNAME', default='admin')
+ADMIN_PASSWORD = config('ADMIN_PASSWORD', default='admin123')
+ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@example.com')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
