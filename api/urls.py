@@ -19,9 +19,8 @@ urlpatterns = [
     # ORDERS
     path('orders/', views.my_orders),
 
-    # DOWNLOAD SYSTEM (FIXED)
+    # DOWNLOAD SYSTEM (Alias fixed to resolve frontend 404)
     path('my-downloads/', views.my_downloads),
-    # Alias to fix the 404 error seen in your console:
-    path('my-paid-products/', views.my_downloads), 
+    path('my-paid-products/', views.my_downloads), # FIX: Frontend expects this URL
     path('download/<int:product_id>/', views.download_product),
 ]
