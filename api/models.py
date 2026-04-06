@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
-
+# Import the storage class for non-image files
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
@@ -12,15 +13,18 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-
 class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     image = models.ImageField(upload_to='products/', null=True, blank=True)
+    
+    # Updated: Added RawMediaCloudinaryStorage to handle .exe and other binaries
     file = models.FileField(
         upload_to='products/files/',
-        null=True, blank=True,
+        storage=RawMediaCloudinaryStorage(), 
+        null=True, 
+        blank=True,
         validators=[FileExtensionValidator(
             allowed_extensions=['exe', 'zip', 'dmg', 'sh', 'bin', 'msi']
         )]
@@ -32,7 +36,7 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-
+# ... (Order and OrderItem models remain the same)
 class Order(models.Model):
     STATUS = (
         ('Pending', 'Pending'),
@@ -49,7 +53,6 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order {self.id} by {self.user.username}"
-
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')

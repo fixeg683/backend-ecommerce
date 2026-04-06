@@ -1,6 +1,5 @@
 import os
 import dj_database_url
-import cloudinary
 from datetime import timedelta
 from decouple import config
 from pathlib import Path
@@ -85,9 +84,6 @@ if DATABASE_URL:
             ssl_require=True
         )
     }
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': 'require',
-    }
 else:
     DATABASES = {
         'default': {
@@ -132,17 +128,17 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# 9. MEDIA FILES → Cloudinary
-cloudinary.config(
-    cloud_name=config('CLOUDINARY_CLOUD_NAME', default=''),
-    api_key=config('CLOUDINARY_API_KEY', default=''),
-    api_secret=config('CLOUDINARY_API_SECRET', default=''),
-)
+# 9. MEDIA FILES (Cloudinary Storage)
+import cloudinary
 
-if config('CLOUDINARY_CLOUD_NAME', default=''):
-    DEFAULT_FILE_STORAGE = 'core.cloudinary_storage.SafeMediaCloudinaryStorage'
-else:
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
+    'API_KEY': config('CLOUDINARY_API_KEY', default=''),
+    'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
+}
+
+# This setting handles standard ImageField uploads
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -158,10 +154,8 @@ CSRF_TRUSTED_ORIGINS = [
 
 # 11. M-PESA DARAJA API
 MPESA_ENV = config('MPESA_ENV', default='sandbox')
-
 MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
 MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET', default='')
-
 MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='174379')
 MPESA_PASSKEY = config(
     'MPESA_PASSKEY',
@@ -173,9 +167,7 @@ if MPESA_ENV == 'sandbox':
 else:
     MPESA_BASE_URL = 'https://api.safaricom.co.ke'
 
-MPESA_CALLBACK_URL = config(
-    'MPESA_CALLBACK_URL',
-    default='https://backend-ecommerce-3-href.onrender.com/api/payments/callback/'
-)
+# BASE_URL of your deployed backend
+BASE_URL = config('BASE_URL', default='https://backend-ecommerce-3-href.onrender.com')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
