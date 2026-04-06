@@ -74,17 +74,30 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 5. DATABASE (Supabase)
-DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL'),
-        conn_max_age=600,
-        ssl_require=True
-    )
-}
-DATABASES['default']['OPTIONS'] = {
-    'sslmode': 'require',
-}
+# 5. DATABASE
+# Uses SQLite locally, Supabase on Render
+DATABASE_URL = config('DATABASE_URL', default=None)
+
+if DATABASE_URL:
+    # Production (Render) — Supabase PostgreSQL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True
+        )
+    }
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require',
+    }
+else:
+    # Local development — SQLite (no internet needed)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # 6. AUTHENTICATION & JWT
 AUTH_PASSWORD_VALIDATORS = [
@@ -123,16 +136,18 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # 9. MEDIA FILES → Cloudinary
-# Get free credentials at cloudinary.com → Dashboard
 cloudinary.config(
-    cloud_name=config('CLOUDINARY_CLOUD_NAME'),
-    api_key=config('CLOUDINARY_API_KEY'),
-    api_secret=config('CLOUDINARY_API_SECRET'),
+    cloud_name=config('CLOUDINARY_CLOUD_NAME', default=''),
+    api_key=config('CLOUDINARY_API_KEY', default=''),
+    api_secret=config('CLOUDINARY_API_SECRET', default=''),
 )
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Use Cloudinary in production, local media in development
+if config('CLOUDINARY_CLOUD_NAME', default=''):
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+else:
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
-# Keep these as fallback for local dev
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -142,7 +157,33 @@ CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
     'https://backend-ecommerce-3-href.onrender.com',
     'https://*.onrender.com',
-    'https://*.vercel.app',  # covers all your Vercel deployments
+    'https://*.vercel.app',
 ]
+
+# 11. M-PESA DARAJA API
+MPESA_ENV = config('MPESA_ENV', default='sandbox')
+
+MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
+MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET', default='')
+
+# Sandbox defaults — replace with live values in production
+MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='174379')
+MPESA_PASSKEY = config(
+    'MPESA_PASSKEY',
+    default='bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+)
+
+# API URLs switch automatically between sandbox and live
+if MPESA_ENV == 'sandbox':
+    MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke'
+else:
+    MPESA_BASE_URL = 'https://api.safaricom.co.ke'
+
+# Callback URL — must be a public HTTPS URL Safaricom can reach
+# On Render this is set automatically; locally use ngrok
+MPESA_CALLBACK_URL = config(
+    'MPESA_CALLBACK_URL',
+    default='https://backend-ecommerce-3-href.onrender.com/api/payments/callback/'
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
