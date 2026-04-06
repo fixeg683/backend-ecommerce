@@ -7,11 +7,19 @@ router.register(r'products', views.ProductViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('register/', views.register_user, name='register'),
-    path('users/me/', views.current_user, name='current-user'),
-    path('pay/', views.initiate_payment, name='pay'),
-    path('payments/callback/', views.mpesa_callback, name='callback'),
-    path('orders/', views.my_orders, name='my-orders'),
-    path('my-paid-products/', views.my_paid_products, name='my-paid-products'),
-    path('download/<int:product_id>/', views.download_product, name='download'),
+
+    # AUTH
+    path('register/', views.register_user),
+    path('users/me/', views.current_user),
+
+    # PAYMENT
+    path('pay/', views.initiate_payment),
+    path('payments/callback/', views.mpesa_callback),
+
+    # ORDERS
+    path('orders/', views.my_orders),
+
+    # DOWNLOAD SYSTEM (FIXED)
+    path('my-downloads/', views.my_downloads),
+    path('download/<int:product_id>/', views.download_product),
 ]

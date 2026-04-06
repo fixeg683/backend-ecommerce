@@ -75,11 +75,9 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # 5. DATABASE
-# Uses SQLite locally, Supabase on Render
 DATABASE_URL = config('DATABASE_URL', default=None)
 
 if DATABASE_URL:
-    # Production (Render) — Supabase PostgreSQL
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
@@ -91,7 +89,6 @@ if DATABASE_URL:
         'sslmode': 'require',
     }
 else:
-    # Local development — SQLite (no internet needed)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -142,9 +139,8 @@ cloudinary.config(
     api_secret=config('CLOUDINARY_API_SECRET', default=''),
 )
 
-# Use Cloudinary in production, local media in development
 if config('CLOUDINARY_CLOUD_NAME', default=''):
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    DEFAULT_FILE_STORAGE = 'core.cloudinary_storage.SafeMediaCloudinaryStorage'
 else:
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
@@ -166,21 +162,17 @@ MPESA_ENV = config('MPESA_ENV', default='sandbox')
 MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
 MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET', default='')
 
-# Sandbox defaults — replace with live values in production
 MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='174379')
 MPESA_PASSKEY = config(
     'MPESA_PASSKEY',
     default='bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
 )
 
-# API URLs switch automatically between sandbox and live
 if MPESA_ENV == 'sandbox':
     MPESA_BASE_URL = 'https://sandbox.safaricom.co.ke'
 else:
     MPESA_BASE_URL = 'https://api.safaricom.co.ke'
 
-# Callback URL — must be a public HTTPS URL Safaricom can reach
-# On Render this is set automatically; locally use ngrok
 MPESA_CALLBACK_URL = config(
     'MPESA_CALLBACK_URL',
     default='https://backend-ecommerce-3-href.onrender.com/api/payments/callback/'
