@@ -1,16 +1,21 @@
-from rest_framework import viewsets, permissions
-from .models import Product
-from .serializers import ProductSerializer
+# api/views.py
 
-class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
-    serializer_class = ProductSerializer
-    # Explicitly AllowAny to prevent 401s on the Product List
-    permission_classes = [permissions.AllowAny] 
+from rest_framework.decorators import api_view, permission_classes # ADD THIS LINE
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework import status, viewsets
+# ... your other imports (models, serializers, etc.)
 
-# Ensure this view exists for your downloads
+@api_view(['GET'])
+def api_root(request):
+    return Response({
+        "message": "Welcome to the E-Space API",
+        "status": "Running"
+    })
+
+# Ensure your other views also have the correct decorators
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_downloads(request):
-    # your existing logic to return paid products
-    pass
+    # your logic here
+    return Response({"message": "Success"})
