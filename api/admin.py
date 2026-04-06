@@ -1,13 +1,22 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Product, Order, OrderItem
+from .models import Category, Product, Order, OrderItem
+
+
+# 🔹 CATEGORY ADMIN (NEW)
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("id", "name")
+    search_fields = ("name",)
+    ordering = ("name",)
 
 
 # 🔹 PRODUCT ADMIN
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "price", "file_link")
-    search_fields = ("name",)
-    list_filter = ("price",)
+    list_display = ("name", "price", "category", "file_link")
+    search_fields = ("name", "category__name")
+    list_filter = ("category", "price")
+    autocomplete_fields = ["category"]
 
     def file_link(self, obj):
         """
