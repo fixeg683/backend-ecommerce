@@ -1,106 +1,160 @@
 import os
-import dj_database_url
-from datetime import timedelta
-from decouple import config
 from pathlib import Path
+import dj_database_url
+import cloudinary
 
+# -------------------------
+# BASE DIR
+# -------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-your-unique-random-string-here')
-DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '.onrender.com',
-    'backend-ecommerce-3-href.onrender.com',
-]
 
+# -------------------------
+# SECURITY
+# -------------------------
+SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-secret-key')
+
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+ALLOWED_HOSTS = ['*']  # Change to your domain later
+
+
+# -------------------------
+# APPLICATIONS
+# -------------------------
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'cloudinary_storage',
     'django.contrib.staticfiles',
-    'cloudinary',
+
+    # Third-party
     'rest_framework',
-    'rest_framework_simplejwt',
     'corsheaders',
+    'cloudinary',
+    'cloudinary_storage',
+
+    # Local
     'api',
 ]
 
+
+# -------------------------
+# MIDDLEWARE
+# -------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # POSITION 1: CRITICAL FOR 401/CORS FIX
+    'corsheaders.middleware.CorsMiddleware',
+
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'core.urls'
 
+# -------------------------
+# URLS / WSGI
+# -------------------------
+ROOT_URLCONF = 'core.urls'
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# DATABASE (Using the Pooler Host and Port 6543)
-DATABASE_URL = config('DATABASE_URL', default=None)
-if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True
-        )
-    }
 
+# -------------------------
+# DATABASE (Supabase FIXED)
+# -------------------------
+DATABASES = {
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,
+        ssl_require=True
+    )
+}
+
+
+# -------------------------
+# PASSWORD VALIDATION
+# -------------------------
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+
+# -------------------------
+# INTERNATIONALIZATION
+# -------------------------
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+
+# -------------------------
+# STATIC FILES (Render FIX)
+# -------------------------
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+
+# -------------------------
+# MEDIA / CLOUDINARY
+# -------------------------
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
+)
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+
+# -------------------------
+# CORS (Vercel frontend)
+# -------------------------
+CORS_ALLOW_ALL_ORIGINS = True
+
+# (Better for production)
+# CORS_ALLOWED_ORIGINS = [
+#     "https://your-frontend.vercel.app"
+# ]
+
+
+# -------------------------
+# DRF SETTINGS
+# -------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny', # Allows product list to load without login
-    ],
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',
+    ),
 }
 
+
+# -------------------------
+# JWT SETTINGS (Optional tuning)
+# -------------------------
+from datetime import timedelta
+
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS & CSRF
-CORS_ALLOW_ALL_ORIGINS = True 
-CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = [
-    'https://backend-ecommerce-3-href.onrender.com',
-    'https://e-spaceapp.vercel.app',
-    'https://*.vercel.app',
-]
 
-# CLOUDINARY
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': config('CLOUDINARY_API_KEY'),
-    'API_SECRET': config('CLOUDINARY_API_SECRET'),
-}
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
-# MPESA
-MPESA_ENV = config('MPESA_ENV', default='sandbox')
-MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY')
-MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET')
-MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='174379')
-MPESA_PASSKEY = config('MPESA_PASSKEY')
-BASE_URL = config('BASE_URL', default='https://backend-ecommerce-3-href.onrender.com')
-
-# ADMIN
-ADMIN_USERNAME = config('ADMIN_USERNAME', default='admin')
-ADMIN_PASSWORD = config('ADMIN_PASSWORD', default='admin123')
-ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@example.com')
-
+# -------------------------
+# DEFAULT PRIMARY KEY
+# -------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
