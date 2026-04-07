@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .views import ProductViewSet, CategoryViewSet
 from . import views
 
 router = DefaultRouter()
-router.register(r'products', views.ProductViewSet)
+router.register(r'products', ProductViewSet, basename='products')
+router.register(r'categories', CategoryViewSet, basename='categories')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -19,8 +21,8 @@ urlpatterns = [
     # ORDERS
     path('orders/', views.my_orders),
 
-    # DOWNLOAD SYSTEM (Alias fixed to resolve frontend 404)
+    # DOWNLOADS
     path('my-downloads/', views.my_downloads),
-    path('my-paid-products/', views.my_downloads), # FIX: Frontend expects this URL
+    path('my-paid-products/', views.my_downloads),
     path('download/<int:product_id>/', views.download_product),
 ]

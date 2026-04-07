@@ -20,6 +20,5 @@ urlpatterns = [
     path('api/', include('api.urls')),
 ]
 
-# MEDIA SERVING
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
