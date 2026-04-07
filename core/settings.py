@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import dj_database_url
 import cloudinary
+from datetime import timedelta
 
 # -------------------------
 # BASE DIR
@@ -20,7 +21,7 @@ ALLOWED_HOSTS = ['*']  # Change to your domain later
 
 
 # -------------------------
-# APPLICATIONS
+# INSTALLED APPS
 # -------------------------
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -67,7 +68,27 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # -------------------------
-# DATABASE (Supabase FIXED)
+# TEMPLATES (🔥 FIXES YOUR ERROR)
+# -------------------------
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,  # REQUIRED for admin + DRF
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',  # REQUIRED
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+
+# -------------------------
+# DATABASE (SUPABASE)
 # -------------------------
 DATABASES = {
     'default': dj_database_url.config(
@@ -108,7 +129,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # -------------------------
-# MEDIA / CLOUDINARY
+# CLOUDINARY CONFIG (🔥 FIXED)
 # -------------------------
 cloudinary.config(
     cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
@@ -116,18 +137,19 @@ cloudinary.config(
     api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
 )
 
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    'API_KEY': os.environ.get("CLOUDINARY_API_KEY"),
+    'API_SECRET': os.environ.get("CLOUDINARY_API_SECRET"),
+}
+
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 
 # -------------------------
-# CORS (Vercel frontend)
+# CORS (Frontend on Vercel)
 # -------------------------
 CORS_ALLOW_ALL_ORIGINS = True
-
-# (Better for production)
-# CORS_ALLOWED_ORIGINS = [
-#     "https://your-frontend.vercel.app"
-# ]
 
 
 # -------------------------
@@ -144,10 +166,8 @@ REST_FRAMEWORK = {
 
 
 # -------------------------
-# JWT SETTINGS (Optional tuning)
+# JWT SETTINGS
 # -------------------------
-from datetime import timedelta
-
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
