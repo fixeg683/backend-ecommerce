@@ -130,3 +130,21 @@ def mpesa_callback(request):
 
         if result_code == 0:
             metadata = body.get('CallbackMetadata', {}).get('Item', [])
+            meta = {item['Name']: item.get('Value') for item in metadata}
+            print(f"Payment confirmed: {meta.get('MpesaReceiptNumber')}, Phone: {meta.get('PhoneNumber')}, Amount: {meta.get('Amount')}")
+        else:
+            print(f"Payment failed. ResultCode: {result_code}")
+
+    except Exception as e:
+        print(f"Callback processing error: {e}")
+
+    return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_payment(request):
+    checkout_request_id = request.data.get('checkout_request_id')
+    if not checkout_request_id:
+        return Response({"error": "checkout_request_id required"}, status=400)
+    result = verify_mpesa_payment(checkout_request_id)
+    return Response(result)
