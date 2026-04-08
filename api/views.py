@@ -1,11 +1,27 @@
-from .mpesa_utils import verify_mpesa_payment
+# ✅ ALL imports at the very top — nothing before these
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework import status, viewsets
+from django.contrib.auth.models import User
+from .models import Product, Category, Order, OrderItem
+from .serializers import (
+    ProductSerializer,
+    CategorySerializer,
+    OrderSerializer,
+    UserSerializer
+)
+from .mpesa_utils import initiate_mpesa_payment, format_phone, verify_mpesa_payment
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def verify_payment(request):
-    checkout_request_id = request.data.get('checkout_request_id')
-    if not checkout_request_id:
-        return Response({"error": "checkout_request_id required"}, status=400)
-    
-    result = verify_mpesa_payment(checkout_request_id)
-    return Response(result)
+# -------------------------
+# ROOT
+# -------------------------
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_root(request):
+    return Response({
+        "message": "Welcome to the E-Space API",
+        "status": "Running"
+    })
+
+# rest of your views below...
