@@ -3,6 +3,16 @@ import base64
 from datetime import datetime
 from django.conf import settings
 
+
+def format_phone(phone):
+    phone = str(phone).strip().replace(' ', '')
+    if phone.startswith('+254'):
+        return phone[1:]
+    if phone.startswith('0'):
+        return '254' + phone[1:]
+    return phone
+
+
 def get_access_token():
     url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
     try:
@@ -13,7 +23,7 @@ def get_access_token():
         print(f"Error getting M-Pesa token: {e}")
         return None
 
-# Rename this or alias it to match your views.py import
+
 def initiate_mpesa_payment(phone, amount, order_id):
     token = get_access_token()
     if not token:
@@ -22,7 +32,7 @@ def initiate_mpesa_payment(phone, amount, order_id):
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
     password = base64.b64encode(password_str.encode()).decode()
-    
+
     payload = {
         "BusinessShortCode": settings.MPESA_SHORTCODE,
         "Password": password,
@@ -36,24 +46,45 @@ def initiate_mpesa_payment(phone, amount, order_id):
         "AccountReference": f"INV{order_id}",
         "TransactionDesc": "Ecom Payment"
     }
-    
+
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     try:
         response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest", 
-            json=payload, 
+            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            json=payload,
+            headers=headers
+        )
+        print("STK Push response:", response.json())
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def verify_mpesa_payment(checkout_request_id):
+    token = get_access_token()
+    if not token:
+        return {"error": "Could not authenticate"}
+
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
+    password = base64.b64encode(password_str.encode()).decode()
+
+    payload = {
+        "BusinessShortCode": settings.MPESA_SHORTCODE,
+        "Password": password,
+        "Timestamp": timestamp,
+        "CheckoutRequestID": checkout_request_id
+    }
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    try:
+        response = requests.post(
+            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/querystatus",
+            json=payload,
             headers=headers
         )
         return response.json()
     except Exception as e:
         return {"error": str(e)}
-
-# Added this to prevent the "cannot import verify_mpesa_payment" error
-def verify_mpesa_payment(checkout_request_id):
-    """
-    Placeholder for M-Pesa Query request to check status
-    """
-    token = get_access_token()
-    # Add Daraja Query logic here if needed
-    return {"status": "Processing"}
