@@ -11,6 +11,3 @@ services:
         value: core.settings
       - key: DEBUG
         value: "False"
-      - fromDatabase:
-          name: esoko-db # If using Render's Managed Postgres
-          property: connectionString
