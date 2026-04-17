@@ -1,25 +1,31 @@
 from django.db import models
-from django.contrib.auth.models import User
-from products.models import Product
+from api.models import Product, Order
 
-
-class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="orders")
-
-    # Payment status
-    is_paid = models.BooleanField(default=False)
-
-    # Store external payment reference (PayPal / M-Pesa)
-    payment_id = models.CharField(max_length=255, blank=True, null=True)
-
-    # Optional fields for better tracking
+class Payment(models.Model):
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="payments"
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="payments"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    phone = models.CharField(max_length=15)
+    checkout_request_id = models.CharField(max_length=100, null=True, blank=True)
+    mpesa_receipt_number = models.CharField(max_length=100, null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("Pending", "Pending"),
+            ("Completed", "Completed"),
+            ("Failed", "Failed"),
+        ],
+        default="Pending"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Order #{self.id} - {self.user.username} - {self.product.name}"
-
-    class Meta:
-        ordering = ['-created_at']
-        unique_together = ('user', 'product')  # Prevent duplicate purchases
+        return f"Payment {self.id} - {self.status}"
