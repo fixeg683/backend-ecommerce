@@ -1,9 +1,8 @@
 from django.urls import path
-from . import views
+from .views import verify_payment, check_access, download_product
 
 urlpatterns = [
-    path('pay/', views.initiate_payment, name='initiate_payment'),
-    path('payments/callback/', views.mpesa_callback, name='mpesa_callback'),
-    path('verify-payment/', views.verify_payment, name='verify_payment'),
-    path('my-paid-products/', views.my_downloads, name='my_downloads'),
+    path('verify-payment/', verify_payment),
+    path('check-access/<int:product_id>/', check_access),
+    path('download/<int:product_id>/', download_product),
 ]
