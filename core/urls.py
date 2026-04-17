@@ -2,24 +2,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
-from api.views import api_root
 
 urlpatterns = [
-    path('', api_root, name='api-root'),
     path('admin/', admin.site.urls),
-
-    # JWT AUTH
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
-    # API
+    # This connects your api app. 
+    # Any URL in api/urls.py will now start with /api/
     path('api/', include('api.urls')),
-    path('api/payments/', include('payments.urls')),
 ]
 
+# Serving static and media files during development
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
