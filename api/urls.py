@@ -15,11 +15,6 @@ urlpatterns = [
     path('register/', views.register_user),
     path('users/me/', views.current_user),
 
-    # PAYMENT
-    path('pay/', views.initiate_payment),
-    path('payments/callback/', views.mpesa_callback),
-    path('verify-payment/', views.verify_payment),
-
     # DOWNLOADS
     path('download/<int:product_id>/', views.download_product),
 ]
