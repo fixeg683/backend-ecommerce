@@ -10,12 +10,11 @@ from .serializers import (
     OrderSerializer,
     UserSerializer
 )
+from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment
 import traceback
 
 # -------------------------
-
 # ROOT
-
 # -------------------------
 
 @api_view(['GET'])
@@ -24,9 +23,7 @@ def api_root(request):
     return Response({"message": "Welcome to the E-Space API", "status": "Running"})
 
 # -------------------------
-
 # VIEWSETS
-
 # -------------------------
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -67,7 +64,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                             "id": product.id,
                             "name": product.name,
                             "description": product.description,
-                            "price": product.price,
+                            "price": str(product.price),
                             "image": product.image.url if product.image else None,
                         }
                     })
@@ -75,9 +72,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(data)
 
 # -------------------------
-
 # AUTH
-
 # -------------------------
 
 @api_view(['POST'])
@@ -100,9 +95,119 @@ def current_user(request):
     return Response(serializer.data)
 
 # -------------------------
+# PAYMENTS
+# -------------------------
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pay(request):
+    """
+    Initiate M-Pesa STK Push for the user's cart.
+    Expects: { phone, amount, product_ids: [...] }
+    """
+    phone = request.data.get('phone')
+    amount = request.data.get('amount')
+    product_ids = request.data.get('product_ids', [])
+
+    if not phone or not amount:
+        return Response({"error": "phone and amount are required"}, status=400)
+
+    if not product_ids:
+        return Response({"error": "product_ids cannot be empty"}, status=400)
+
+    # Create a pending Order
+    order = Order.objects.create(
+        user=request.user,
+        total_amount=amount,
+        phone=phone,
+        status='Pending'
+    )
+
+    # Attach products as OrderItems
+    for pid in product_ids:
+        try:
+            product = Product.objects.get(id=pid)
+            OrderItem.objects.get_or_create(order=order, product=product)
+        except Product.DoesNotExist:
+            pass
+
+    # Fire STK Push
+    result = initiate_mpesa_payment(phone, amount, order.id)
+
+    if 'error' in result:
+        order.status = 'Failed'
+        order.save()
+        return Response({"error": result['error']}, status=502)
+
+    # Persist CheckoutRequestID for polling / callback matching
+    order.checkout_request_id = result.get('CheckoutRequestID')
+    order.save()
+
+    return Response(result, status=200)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_payment(request):
+    """
+    Poll M-Pesa for STK Push status.
+    Expects: { checkout_request_id }
+    Marks order + items paid if ResultCode == 0.
+    """
+    checkout_request_id = request.data.get('checkout_request_id')
+    if not checkout_request_id:
+        return Response({"error": "checkout_request_id is required"}, status=400)
+
+    result = verify_mpesa_payment(checkout_request_id)
+
+    # Mark order paid on success
+    if str(result.get('ResultCode')) == '0':
+        try:
+            order = Order.objects.get(
+                checkout_request_id=checkout_request_id,
+                user=request.user
+            )
+            order.is_paid = True
+            order.status = 'Completed'
+            order.save()
+            order.items.all().update(purchased=True)
+        except Order.DoesNotExist:
+            pass  # may already be marked by callback
+
+    return Response(result, status=200)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Safaricom calls this — no JWT
+def mpesa_callback(request):
+    """
+    Safaricom STK Push callback — server-side payment confirmation.
+    Runs independently of frontend polling for reliability.
+    """
+    try:
+        body = request.data.get('Body', {})
+        stk = body.get('stkCallback', {})
+        result_code = stk.get('ResultCode')
+        checkout_id = stk.get('CheckoutRequestID')
+
+        if str(result_code) == '0' and checkout_id:
+            try:
+                order = Order.objects.get(checkout_request_id=checkout_id)
+                order.is_paid = True
+                order.status = 'Completed'
+                order.save()
+                order.items.all().update(purchased=True)
+            except Order.DoesNotExist:
+                pass
+
+    except Exception as e:
+        print(f"Callback error: {traceback.format_exc()}")
+
+    # Safaricom requires this exact response shape
+    return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+# -------------------------
 # DOWNLOADS
-
 # -------------------------
 
 @api_view(['GET'])
@@ -122,6 +227,7 @@ def my_downloads(request):
         print(f"Downloads error: {traceback.format_exc()}")
         return Response({"error": str(e)}, status=500)
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def download_product(request, product_id):
@@ -135,7 +241,7 @@ def download_product(request, product_id):
         if item.product.file:
             return Response({"download_url": item.product.file.url})
 
-        return Response({"error": "No file available"}, status=404)
+        return Response({"error": "No file available for this product"}, status=404)
 
     except OrderItem.DoesNotExist:
-        return Response({"error": "Not authorized"}, status=403)
+        return Response({"error": "Purchase required to download this product"}, status=403)
