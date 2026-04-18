@@ -8,7 +8,10 @@ from .views import (
     register_user,
     current_user,
     my_downloads,
-    download_product
+    download_product,
+    pay,
+    verify_payment,
+    mpesa_callback,
 )
 
 router = DefaultRouter()
@@ -19,13 +22,19 @@ router.register(r'orders', OrderViewSet, basename='orders')
 urlpatterns = [
     path('', api_root),
 
-    # ✅ ADD THIS (your missing endpoint)
+    # Auth
     path('register/', register_user, name='register'),
-
-    # optional but recommended
     path('me/', current_user),
+
+    # Downloads
     path('downloads/', my_downloads),
     path('download/<int:product_id>/', download_product),
 
+    # Payments
+    path('pay/', pay, name='pay'),
+    path('verify-payment/', verify_payment, name='verify-payment'),
+    path('payments/callback/', mpesa_callback, name='mpesa-callback'),
+
+    # Router (products, categories, orders)
     path('', include(router.urls)),
 ]
