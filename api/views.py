@@ -47,11 +47,8 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my-orders')
     def my_orders(self, request):
-        """
-        Returns purchased products in flat structure for frontend
-        """
+        """Returns purchased products in flat structure for frontend."""
         orders = self.get_queryset().filter(is_paid=True)
-
         data = []
         for order in orders:
             for item in order.items.all():
@@ -68,7 +65,6 @@ class OrderViewSet(viewsets.ModelViewSet):
                             "image": product.image.url if product.image else None,
                         }
                     })
-
         return Response(data)
 
 # -------------------------
@@ -102,48 +98,62 @@ def current_user(request):
 @permission_classes([IsAuthenticated])
 def pay(request):
     """
-    Initiate M-Pesa STK Push for the user's cart.
+    Initiate M-Pesa STK Push.
     Expects: { phone, amount, product_ids: [...] }
     """
-    phone = request.data.get('phone')
-    amount = request.data.get('amount')
-    product_ids = request.data.get('product_ids', [])
+    try:
+        phone = request.data.get('phone', '').strip()
+        amount = request.data.get('amount')
+        product_ids = request.data.get('product_ids', [])
 
-    if not phone or not amount:
-        return Response({"error": "phone and amount are required"}, status=400)
+        if not phone or amount is None:
+            return Response({"error": "phone and amount are required"}, status=400)
 
-    if not product_ids:
-        return Response({"error": "product_ids cannot be empty"}, status=400)
+        if not product_ids:
+            return Response({"error": "product_ids cannot be empty"}, status=400)
 
-    # Create a pending Order
-    order = Order.objects.create(
-        user=request.user,
-        total_amount=amount,
-        phone=phone,
-        status='Pending'
-    )
-
-    # Attach products as OrderItems
-    for pid in product_ids:
+        # Safely coerce amount to int
         try:
-            product = Product.objects.get(id=pid)
-            OrderItem.objects.get_or_create(order=order, product=product)
-        except Product.DoesNotExist:
-            pass
+            amount_int = int(float(amount))
+        except (TypeError, ValueError):
+            return Response({"error": "Invalid amount value"}, status=400)
 
-    # Fire STK Push
-    result = initiate_mpesa_payment(phone, amount, order.id)
+        if amount_int <= 0:
+            return Response({"error": "Amount must be greater than 0"}, status=400)
 
-    if 'error' in result:
-        order.status = 'Failed'
+        # Create a pending Order
+        order = Order.objects.create(
+            user=request.user,
+            total_amount=amount_int,
+            phone=phone,
+            status='Pending'
+        )
+
+        # Attach products as OrderItems
+        for pid in product_ids:
+            try:
+                product = Product.objects.get(id=pid)
+                OrderItem.objects.get_or_create(order=order, product=product)
+            except Product.DoesNotExist:
+                pass
+
+        # Fire STK Push
+        result = initiate_mpesa_payment(phone, amount_int, order.id)
+
+        if 'error' in result:
+            order.status = 'Failed'
+            order.save()
+            return Response({"error": result['error']}, status=502)
+
+        # Save CheckoutRequestID for polling / callback matching
+        order.checkout_request_id = result.get('CheckoutRequestID')
         order.save()
-        return Response({"error": result['error']}, status=502)
 
-    # Persist CheckoutRequestID for polling / callback matching
-    order.checkout_request_id = result.get('CheckoutRequestID')
-    order.save()
+        return Response(result, status=200)
 
-    return Response(result, status=200)
+    except Exception as e:
+        print(f"[PAY ERROR] {traceback.format_exc()}")
+        return Response({"error": f"Server error: {str(e)}"}, status=500)
 
 
 @api_view(['POST'])
@@ -152,38 +162,39 @@ def verify_payment(request):
     """
     Poll M-Pesa for STK Push status.
     Expects: { checkout_request_id }
-    Marks order + items paid if ResultCode == 0.
     """
-    checkout_request_id = request.data.get('checkout_request_id')
-    if not checkout_request_id:
-        return Response({"error": "checkout_request_id is required"}, status=400)
+    try:
+        checkout_request_id = request.data.get('checkout_request_id', '').strip()
+        if not checkout_request_id:
+            return Response({"error": "checkout_request_id is required"}, status=400)
 
-    result = verify_mpesa_payment(checkout_request_id)
+        result = verify_mpesa_payment(checkout_request_id)
 
-    # Mark order paid on success
-    if str(result.get('ResultCode')) == '0':
-        try:
-            order = Order.objects.get(
-                checkout_request_id=checkout_request_id,
-                user=request.user
-            )
-            order.is_paid = True
-            order.status = 'Completed'
-            order.save()
-            order.items.all().update(purchased=True)
-        except Order.DoesNotExist:
-            pass  # may already be marked by callback
+        # Mark order paid on confirmed result
+        if str(result.get('ResultCode', '')) == '0':
+            try:
+                order = Order.objects.get(
+                    checkout_request_id=checkout_request_id,
+                    user=request.user
+                )
+                order.is_paid = True
+                order.status = 'Completed'
+                order.save()
+                order.items.all().update(purchased=True)
+            except Order.DoesNotExist:
+                pass  # already marked by callback
 
-    return Response(result, status=200)
+        return Response(result, status=200)
+
+    except Exception as e:
+        print(f"[VERIFY ERROR] {traceback.format_exc()}")
+        return Response({"error": f"Server error: {str(e)}"}, status=500)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Safaricom calls this — no JWT
 def mpesa_callback(request):
-    """
-    Safaricom STK Push callback — server-side payment confirmation.
-    Runs independently of frontend polling for reliability.
-    """
+    """Safaricom STK Push callback — server-side payment confirmation."""
     try:
         body = request.data.get('Body', {})
         stk = body.get('stkCallback', {})
@@ -200,10 +211,9 @@ def mpesa_callback(request):
             except Order.DoesNotExist:
                 pass
 
-    except Exception as e:
-        print(f"Callback error: {traceback.format_exc()}")
+    except Exception:
+        print(f"[CALLBACK ERROR] {traceback.format_exc()}")
 
-    # Safaricom requires this exact response shape
     return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 # -------------------------
@@ -224,41 +234,55 @@ def my_downloads(request):
         return Response(serializer.data)
 
     except Exception as e:
-        print(f"Downloads error: {traceback.format_exc()}")
+        print(f"[DOWNLOADS ERROR] {traceback.format_exc()}")
         return Response({"error": str(e)}, status=500)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def download_product(request, product_id):
+    """
+    Returns the Cloudinary download URL for a purchased product.
+    Uses .filter().first() to avoid MultipleObjectsReturned crashes.
+    """
     try:
-        item = OrderItem.objects.get(
+        item = OrderItem.objects.filter(
             order__user=request.user,
             product_id=product_id,
             purchased=True
-        )
+        ).select_related('product').first()
+
+        if not item:
+            return Response(
+                {"error": "Purchase required to download this product"},
+                status=403
+            )
 
         if item.product.file:
             return Response({"download_url": item.product.file.url})
 
         return Response({"error": "No file available for this product"}, status=404)
 
-    except OrderItem.DoesNotExist:
-        return Response({"error": "Purchase required to download this product"}, status=403)
+    except Exception as e:
+        print(f"[DOWNLOAD ERROR] {traceback.format_exc()}")
+        return Response({"error": f"Server error: {str(e)}"}, status=500)
 
 # -------------------------
-# PAID PRODUCT IDS (used by CartContext on mount)
+# PAID PRODUCT IDS
 # -------------------------
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_paid_product_ids(request):
-    """
-    Returns a flat list of product IDs the user has purchased.
-    Used by the frontend CartContext to restore unlock state on page load.
-    """
-    ids = OrderItem.objects.filter(
-        order__user=request.user,
-        purchased=True
-    ).values_list('product_id', flat=True).distinct()
-    return Response(list(ids))
+    """Returns a flat list of product IDs the user has purchased."""
+    try:
+        ids = list(
+            OrderItem.objects.filter(
+                order__user=request.user,
+                purchased=True
+            ).values_list('product_id', flat=True).distinct()
+        )
+        return Response(ids)
+    except Exception as e:
+        print(f"[PAID IDS ERROR] {traceback.format_exc()}")
+        return Response({"error": str(e)}, status=500)
