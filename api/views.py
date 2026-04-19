@@ -245,3 +245,20 @@ def download_product(request, product_id):
 
     except OrderItem.DoesNotExist:
         return Response({"error": "Purchase required to download this product"}, status=403)
+
+# -------------------------
+# PAID PRODUCT IDS (used by CartContext on mount)
+# -------------------------
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_paid_product_ids(request):
+    """
+    Returns a flat list of product IDs the user has purchased.
+    Used by the frontend CartContext to restore unlock state on page load.
+    """
+    ids = OrderItem.objects.filter(
+        order__user=request.user,
+        purchased=True
+    ).values_list('product_id', flat=True).distinct()
+    return Response(list(ids))
