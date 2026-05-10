@@ -33,6 +33,12 @@ class Product(models.Model):
         )]
     )
 
+    download_url_override = models.URLField(
+        null=True,
+        blank=True,
+        help_text="External download URL (overrides Cloudinary file if set)"
+    )
+
     stock = models.IntegerField(default=10)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
