@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
+    my_paid_product_ids,
     ProductViewSet,
     CategoryViewSet,
     OrderViewSet,
@@ -34,6 +35,7 @@ urlpatterns = [
     path('pay/', pay, name='pay'),
     path('verify-payment/', verify_payment, name='verify-payment'),
     path('payments/callback/', mpesa_callback, name='mpesa-callback'),
+    path('my-paid-products/', my_paid_product_ids, name='my-paid-products'),
 
     # Router (products, categories, orders)
     path('', include(router.urls)),
