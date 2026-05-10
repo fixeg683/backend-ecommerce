@@ -1,6 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import (
+    my_paid_product_ids,
     ProductViewSet,
     CategoryViewSet,
     OrderViewSet,
@@ -26,6 +28,10 @@ urlpatterns = [
     path('register/', register_user, name='register'),
     path('me/', current_user),
 
+    # JWT — must live here inside api/urls.py; core/urls.py paths are shadowed by include('api.urls')
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
     # Downloads
     path('downloads/', my_downloads),
     path('download/<int:product_id>/', download_product),
@@ -34,6 +40,7 @@ urlpatterns = [
     path('pay/', pay, name='pay'),
     path('verify-payment/', verify_payment, name='verify-payment'),
     path('payments/callback/', mpesa_callback, name='mpesa-callback'),
+    path('my-paid-products/', my_paid_product_ids, name='my-paid-products'),
 
     # Router (products, categories, orders)
     path('', include(router.urls)),
