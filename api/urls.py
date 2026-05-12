@@ -14,6 +14,7 @@ from .views import (
     pay,
     verify_payment,
     mpesa_callback,
+    mpesa_health,
 )
 
 router = DefaultRouter()
@@ -41,6 +42,7 @@ urlpatterns = [
     path('verify-payment/', verify_payment, name='verify-payment'),
     path('payments/callback/', mpesa_callback, name='mpesa-callback'),
     path('my-paid-products/', my_paid_product_ids, name='my-paid-products'),
+    path('mpesa-health/', mpesa_health, name='mpesa-health'),
 
     # Router (products, categories, orders)
     path('', include(router.urls)),

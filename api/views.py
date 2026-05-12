@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status, viewsets
 from django.contrib.auth.models import User
+from django.conf import settings
 from .models import Product, Category, Order, OrderItem
 from .serializers import (
     ProductSerializer,
@@ -10,7 +11,7 @@ from .serializers import (
     OrderSerializer,
     UserSerializer
 )
-from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment
+from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment, get_access_token
 import traceback
 
 # -------------------------
@@ -94,6 +95,45 @@ def current_user(request):
 # PAYMENTS
 # -------------------------
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def mpesa_health(request):
+    """
+    Diagnostic endpoint — checks M-Pesa config and Safaricom connectivity.
+    GET /api/mpesa-health/
+    Safe to call; never initiates a real transaction.
+    """
+    key = getattr(settings, 'MPESA_CONSUMER_KEY', '').strip()
+    secret = getattr(settings, 'MPESA_CONSUMER_SECRET', '').strip()
+    shortcode = getattr(settings, 'MPESA_SHORTCODE', '')
+    passkey_set = bool(getattr(settings, 'MPESA_PASSKEY', '').strip())
+    base_url = getattr(settings, 'BASE_URL', '')
+
+    config_ok = bool(key and secret and shortcode and passkey_set)
+
+    report = {
+        "config": {
+            "MPESA_CONSUMER_KEY": "set" if key else "MISSING",
+            "MPESA_CONSUMER_SECRET": "set" if secret else "MISSING",
+            "MPESA_SHORTCODE": shortcode or "MISSING",
+            "MPESA_PASSKEY": "set" if passkey_set else "MISSING",
+            "BASE_URL": base_url or "MISSING",
+        },
+        "config_ok": config_ok,
+    }
+
+    if config_ok:
+        token, err = get_access_token()
+        if token:
+            report["safaricom_auth"] = "OK — token obtained"
+        else:
+            report["safaricom_auth"] = f"FAILED — {err}"
+    else:
+        report["safaricom_auth"] = "SKIPPED — fix config first"
+
+    return Response(report)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def pay(request):
@@ -143,12 +183,22 @@ def pay(request):
         if 'error' in result:
             order.status = 'Failed'
             order.save()
-            return Response({"error": result['error']}, status=502)
+            error_msg = result['error']
+            print(f"[PAY] STK Push failed for order {order.id}: {error_msg}")
+            # Use 503 (upstream dependency unavailable) rather than 502
+            return Response({"error": error_msg}, status=503)
 
         # Save CheckoutRequestID for polling / callback matching
-        order.checkout_request_id = result.get('CheckoutRequestID')
+        checkout_request_id = result.get('CheckoutRequestID')
+        if not checkout_request_id:
+            order.status = 'Failed'
+            order.save()
+            return Response({"error": "Safaricom did not return a CheckoutRequestID"}, status=503)
+
+        order.checkout_request_id = checkout_request_id
         order.save()
 
+        print(f"[PAY] STK Push sent. Order {order.id}, CheckoutRequestID={checkout_request_id}")
         return Response(result, status=200)
 
     except Exception as e:
@@ -170,8 +220,14 @@ def verify_payment(request):
 
         result = verify_mpesa_payment(checkout_request_id)
 
+        # Surface auth/network errors as 503
+        if 'error' in result:
+            return Response({"error": result['error']}, status=503)
+
+        result_code = str(result.get('ResultCode', ''))
+
         # Mark order paid on confirmed result
-        if str(result.get('ResultCode', '')) == '0':
+        if result_code == '0':
             try:
                 order = Order.objects.get(
                     checkout_request_id=checkout_request_id,
@@ -181,6 +237,7 @@ def verify_payment(request):
                 order.status = 'Completed'
                 order.save()
                 order.items.all().update(purchased=True)
+                print(f"[VERIFY] Order {order.id} marked paid via polling.")
             except Order.DoesNotExist:
                 pass  # already marked by callback
 
