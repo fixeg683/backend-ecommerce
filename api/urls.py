@@ -1,49 +1,53 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import (
-    my_paid_product_ids,
-    ProductViewSet,
-    CategoryViewSet,
-    OrderViewSet,
-    api_root,
-    register_user,
-    current_user,
-    my_downloads,
-    download_product,
-    pay,
-    verify_payment,
-    mpesa_callback,
-    mpesa_health,
-)
-
-router = DefaultRouter()
-router.register(r'products', ProductViewSet)
-router.register(r'categories', CategoryViewSet)
-router.register(r'orders', OrderViewSet, basename='orders')
+from django.urls import path
+from .views import *
 
 urlpatterns = [
-    path('', api_root),
 
-    # Auth
-    path('register/', register_user, name='register'),
-    path('me/', current_user),
+    # -----------------------------------
+    # API HOME
+    # -----------------------------------
 
-    # JWT — must live here inside api/urls.py; core/urls.py paths are shadowed by include('api.urls')
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path(
+        '',
+        api_home,
+        name='api-home'
+    ),
 
-    # Downloads
-    path('downloads/', my_downloads),
-    path('download/<int:product_id>/', download_product),
+    # -----------------------------------
+    # PAYMENT ROUTES
+    # -----------------------------------
 
-    # Payments
-    path('pay/', pay, name='pay'),
-    path('verify-payment/', verify_payment, name='verify-payment'),
-    path('payments/callback/', mpesa_callback, name='mpesa-callback'),
-    path('my-paid-products/', my_paid_product_ids, name='my-paid-products'),
-    path('mpesa-health/', mpesa_health, name='mpesa-health'),
+    path(
+        'payment/initiate/',
+        initiate_payment,
+        name='initiate-payment'
+    ),
 
-    # Router (products, categories, orders)
-    path('', include(router.urls)),
+    path(
+        'payment/verify/',
+        verify_payment,
+        name='verify-payment'
+    ),
+
+    path(
+        'payment/callback/',
+        mpesa_callback,
+        name='mpesa-callback'
+    ),
+
+    # -----------------------------------
+    # DOWNLOAD ROUTES
+    # -----------------------------------
+
+    path(
+        'downloads/check/',
+        check_download_access,
+        name='check-download-access'
+    ),
+
+    path(
+        'downloads/file/',
+        download_file,
+        name='download-file'
+    ),
 ]

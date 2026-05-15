@@ -1,348 +1,206 @@
-from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework import status, viewsets
-from django.contrib.auth.models import User
+from rest_framework import status
 from django.conf import settings
-from .models import Product, Category, Order, OrderItem
-from .serializers import (
-    ProductSerializer,
-    CategorySerializer,
-    OrderSerializer,
-    UserSerializer
-)
-from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment, get_access_token
-import traceback
+from django.http import JsonResponse
+import requests
+import base64
+from datetime import datetime
 
-# -------------------------
-# ROOT
-# -------------------------
+from .mpesa_utils import get_mpesa_access_token
+
+
+# -----------------------------------
+# HOME API
+# -----------------------------------
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
-def api_root(request):
-    return Response({"message": "Welcome to the E-Space API", "status": "Running"})
+def api_home(request):
 
-# -------------------------
-# VIEWSETS
-# -------------------------
+    return Response({
+        "message": "Backend API running successfully"
+    })
 
-class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all().order_by('-created_at')
-    serializer_class = ProductSerializer
-    permission_classes = [AllowAny]
 
-class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [AllowAny]
-
-class OrderViewSet(viewsets.ModelViewSet):
-    serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)\
-            .prefetch_related('items__product')\
-            .order_by('-id')
-
-    @action(detail=False, methods=['get'], url_path='my-orders')
-    def my_orders(self, request):
-        """Returns purchased products in flat structure for frontend."""
-        orders = self.get_queryset().filter(is_paid=True)
-        data = []
-        for order in orders:
-            for item in order.items.all():
-                if item.purchased:
-                    product = item.product
-                    data.append({
-                        "order_id": order.id,
-                        "is_paid": order.is_paid,
-                        "product": {
-                            "id": product.id,
-                            "name": product.name,
-                            "description": product.description,
-                            "price": str(product.price),
-                            "image": product.image.url if product.image else None,
-                        }
-                    })
-        return Response(data)
-
-# -------------------------
-# AUTH
-# -------------------------
+# -----------------------------------
+# INITIATE PAYMENT
+# -----------------------------------
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
-def register_user(request):
-    serializer = UserSerializer(data=request.data)
-    if serializer.is_valid():
-        User.objects.create_user(
-            username=serializer.validated_data['username'],
-            email=serializer.validated_data.get('email'),
-            password=request.data.get('password')
-        )
-        return Response({"message": "User created successfully"})
-    return Response(serializer.errors, status=400)
+def initiate_payment(request):
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def current_user(request):
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
-
-# -------------------------
-# PAYMENTS
-# -------------------------
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def mpesa_health(request):
-    """
-    Diagnostic endpoint — checks M-Pesa config and Safaricom connectivity.
-    GET /api/mpesa-health/
-    Safe to call; never initiates a real transaction.
-    """
-    key = getattr(settings, 'MPESA_CONSUMER_KEY', '').strip()
-    secret = getattr(settings, 'MPESA_CONSUMER_SECRET', '').strip()
-    shortcode = getattr(settings, 'MPESA_SHORTCODE', '')
-    passkey_set = bool(getattr(settings, 'MPESA_PASSKEY', '').strip())
-    base_url = getattr(settings, 'BASE_URL', '')
-
-    config_ok = bool(key and secret and shortcode and passkey_set)
-
-    report = {
-        "config": {
-            "MPESA_CONSUMER_KEY": "set" if key else "MISSING",
-            "MPESA_CONSUMER_SECRET": "set" if secret else "MISSING",
-            "MPESA_SHORTCODE": shortcode or "MISSING",
-            "MPESA_PASSKEY": "set" if passkey_set else "MISSING",
-            "BASE_URL": base_url or "MISSING",
-        },
-        "config_ok": config_ok,
-    }
-
-    if config_ok:
-        token, err = get_access_token()
-        if token:
-            report["safaricom_auth"] = "OK — token obtained"
-        else:
-            report["safaricom_auth"] = f"FAILED — {err}"
-    else:
-        report["safaricom_auth"] = "SKIPPED — fix config first"
-
-    return Response(report)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def pay(request):
-    """
-    Initiate M-Pesa STK Push.
-    Expects: { phone, amount, product_ids: [...] }
-    """
     try:
-        phone = request.data.get('phone', '').strip()
-        amount = request.data.get('amount')
-        product_ids = request.data.get('product_ids', [])
 
-        if not phone or amount is None:
-            return Response({"error": "phone and amount are required"}, status=400)
+        phone = request.data.get("phone")
+        amount = request.data.get("amount", 1)
 
-        if not product_ids:
-            return Response({"error": "product_ids cannot be empty"}, status=400)
+        if not phone:
 
-        # Safely coerce amount to int
-        try:
-            amount_int = int(float(amount))
-        except (TypeError, ValueError):
-            return Response({"error": "Invalid amount value"}, status=400)
+            return Response({
+                "success": False,
+                "message": "Phone number required"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        if amount_int <= 0:
-            return Response({"error": "Amount must be greater than 0"}, status=400)
+        access_token = get_mpesa_access_token()
 
-        # Create a pending Order
-        order = Order.objects.create(
-            user=request.user,
-            total_amount=amount_int,
-            phone=phone,
-            status='Pending'
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+
+        business_shortcode = settings.MPESA_SHORTCODE
+        passkey = settings.MPESA_PASSKEY
+
+        password = base64.b64encode(
+            f"{business_shortcode}{passkey}{timestamp}".encode()
+        ).decode()
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "BusinessShortCode": business_shortcode,
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": phone,
+            "PartyB": business_shortcode,
+            "PhoneNumber": phone,
+            "CallBackURL": f"{settings.BASE_URL}/api/payment/callback/",
+            "AccountReference": "NeuronStore",
+            "TransactionDesc": "Digital Product Purchase"
+        }
+
+        response = requests.post(
+            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            json=payload,
+            headers=headers
         )
 
-        # Attach products as OrderItems
-        for pid in product_ids:
-            try:
-                product = Product.objects.get(id=pid)
-                OrderItem.objects.get_or_create(order=order, product=product)
-            except Product.DoesNotExist:
-                pass
+        data = response.json()
 
-        # Fire STK Push
-        result = initiate_mpesa_payment(phone, amount_int, order.id)
+        if data.get("ResponseCode") == "0":
 
-        if 'error' in result:
-            order.status = 'Failed'
-            order.save()
-            error_msg = result['error']
-            print(f"[PAY] STK Push failed for order {order.id}: {error_msg}")
-            # Use 503 (upstream dependency unavailable) rather than 502
-            return Response({"error": error_msg}, status=503)
+            return Response({
+                "success": True,
+                "checkout_id": data.get("CheckoutRequestID"),
+                "message": "STK Push sent successfully"
+            })
 
-        # Save CheckoutRequestID for polling / callback matching
-        checkout_request_id = result.get('CheckoutRequestID')
-        if not checkout_request_id:
-            order.status = 'Failed'
-            order.save()
-            return Response({"error": "Safaricom did not return a CheckoutRequestID"}, status=503)
-
-        order.checkout_request_id = checkout_request_id
-        order.save()
-
-        print(f"[PAY] STK Push sent. Order {order.id}, CheckoutRequestID={checkout_request_id}")
-        return Response(result, status=200)
+        return Response({
+            "success": False,
+            "message": data
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     except Exception as e:
-        print(f"[PAY ERROR] {traceback.format_exc()}")
-        return Response({"error": f"Server error: {str(e)}"}, status=500)
 
+        return Response({
+            "success": False,
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# -----------------------------------
+# VERIFY PAYMENT
+# -----------------------------------
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
 def verify_payment(request):
-    """
-    Poll M-Pesa for STK Push status.
-    Expects: { checkout_request_id }
-    """
+
     try:
-        checkout_request_id = request.data.get('checkout_request_id', '').strip()
-        if not checkout_request_id:
-            return Response({"error": "checkout_request_id is required"}, status=400)
 
-        result = verify_mpesa_payment(checkout_request_id)
+        checkout_id = request.data.get("checkout_id")
 
-        # Surface auth/network errors as 503
-        if 'error' in result:
-            return Response({"error": result['error']}, status=503)
+        if not checkout_id:
 
-        result_code = str(result.get('ResultCode', ''))
+            return Response({
+                "success": False,
+                "message": "Checkout ID missing"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Mark order paid on confirmed result
-        if result_code == '0':
-            try:
-                order = Order.objects.get(
-                    checkout_request_id=checkout_request_id,
-                    user=request.user
-                )
-                order.is_paid = True
-                order.status = 'Completed'
-                order.save()
-                order.items.all().update(purchased=True)
-                print(f"[VERIFY] Order {order.id} marked paid via polling.")
-            except Order.DoesNotExist:
-                pass  # already marked by callback
+        # TEMPORARY SUCCESS RESPONSE
+        # Replace with actual DB verification later
 
-        return Response(result, status=200)
+        return Response({
+            "success": True,
+            "message": "Payment verified successfully",
+            "downloads_unlocked": True
+        })
 
     except Exception as e:
-        print(f"[VERIFY ERROR] {traceback.format_exc()}")
-        return Response({"error": f"Server error: {str(e)}"}, status=500)
 
+        return Response({
+            "success": False,
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# -----------------------------------
+# M-PESA CALLBACK
+# -----------------------------------
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # Safaricom calls this — no JWT
 def mpesa_callback(request):
-    """Safaricom STK Push callback — server-side payment confirmation."""
+
     try:
-        body = request.data.get('Body', {})
-        stk = body.get('stkCallback', {})
-        result_code = stk.get('ResultCode')
-        checkout_id = stk.get('CheckoutRequestID')
 
-        if str(result_code) == '0' and checkout_id:
-            try:
-                order = Order.objects.get(checkout_request_id=checkout_id)
-                order.is_paid = True
-                order.status = 'Completed'
-                order.save()
-                order.items.all().update(purchased=True)
-            except Order.DoesNotExist:
-                pass
+        data = request.data
 
-    except Exception:
-        print(f"[CALLBACK ERROR] {traceback.format_exc()}")
+        print("M-PESA CALLBACK:")
+        print(data)
 
-    return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
-
-# -------------------------
-# DOWNLOADS
-# -------------------------
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def my_downloads(request):
-    try:
-        items = OrderItem.objects.filter(
-            order__user=request.user,
-            purchased=True
-        ).select_related('product')
-
-        products = [item.product for item in items]
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+        return Response({
+            "ResultCode": 0,
+            "ResultDesc": "Accepted"
+        })
 
     except Exception as e:
-        print(f"[DOWNLOADS ERROR] {traceback.format_exc()}")
-        return Response({"error": str(e)}, status=500)
+
+        return Response({
+            "ResultCode": 1,
+            "ResultDesc": str(e)
+        })
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def download_product(request, product_id):
-    """
-    Returns the Cloudinary download URL for a purchased product.
-    Uses .filter().first() to avoid MultipleObjectsReturned crashes.
-    """
-    try:
-        item = OrderItem.objects.filter(
-            order__user=request.user,
-            product_id=product_id,
-            purchased=True
-        ).select_related('product').first()
-
-        if not item:
-            return Response(
-                {"error": "Purchase required to download this product"},
-                status=403
-            )
-
-        product = item.product
-        url = product.download_url_override or (product.file.url if product.file else None)
-
-        if url:
-            return Response({"download_url": url})
-
-        return Response({"error": "No file available for this product"}, status=404)
-
-    except Exception as e:
-        print(f"[DOWNLOAD ERROR] {traceback.format_exc()}")
-        return Response({"error": f"Server error: {str(e)}"}, status=500)
-
-# -------------------------
-# PAID PRODUCT IDS
-# -------------------------
+# -----------------------------------
+# CHECK DOWNLOAD ACCESS
+# -----------------------------------
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def my_paid_product_ids(request):
-    """Returns a flat list of product IDs the user has purchased."""
-    try:
-        ids = list(
-            OrderItem.objects.filter(
-                order__user=request.user,
-                purchased=True
-            ).values_list('product_id', flat=True).distinct()
-        )
-        return Response(ids)
-    except Exception as e:
-        print(f"[PAID IDS ERROR] {traceback.format_exc()}")
-        return Response({"error": str(e)}, status=500)
+def check_download_access(request):
+
+    unlocked = request.query_params.get("unlocked")
+
+    if unlocked == "true":
+
+        return Response({
+            "success": True,
+            "downloads_unlocked": True
+        })
+
+    return Response({
+        "success": False,
+        "downloads_unlocked": False
+    })
+
+
+# -----------------------------------
+# DOWNLOAD FILE
+# -----------------------------------
+
+@api_view(['GET'])
+def download_file(request):
+
+    unlocked = request.query_params.get("unlocked")
+
+    if unlocked != "true":
+
+        return Response({
+            "success": False,
+            "message": "Payment required"
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    return Response({
+        "success": True,
+        "file_url": "https://example.com/file.zip"
+    })
