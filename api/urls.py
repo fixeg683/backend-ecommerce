@@ -50,4 +50,10 @@ urlpatterns = [
         download_file,
         name='download-file'
     ),
+
+    path(
+        'mpesa-health/',
+        mpesa_health,
+        name='mpesa-health'
+    ),
 ]

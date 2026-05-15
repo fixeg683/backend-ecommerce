@@ -209,3 +209,23 @@ def download_file(request):
         "success": True,
         "file_url": "https://example.com/file.zip"
     })
+
+
+# -----------------------------------
+# M-PESA HEALTH CHECK
+# -----------------------------------
+
+@api_view(['GET'])
+def mpesa_health(request):
+    
+    token, err = get_access_token()
+    if token:
+        return Response({
+            "status": "healthy", 
+            "message": "M-Pesa credentials are valid and working."
+        })
+    else:
+        return Response({
+            "status": "unhealthy", 
+            "message": err
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
