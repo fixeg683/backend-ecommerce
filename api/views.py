@@ -7,7 +7,7 @@ import requests
 import base64
 from datetime import datetime
 
-from .mpesa_utils import get_mpesa_access_token
+from .mpesa_utils import get_access_token
 
 
 # -----------------------------------
@@ -41,7 +41,12 @@ def initiate_payment(request):
                 "message": "Phone number required"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        access_token = get_mpesa_access_token()
+        access_token, err = get_access_token()
+        if not access_token:
+            return Response({
+                "success": False,
+                "message": err
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 
