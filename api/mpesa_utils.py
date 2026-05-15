@@ -37,7 +37,7 @@ def get_access_token():
         print(f"[MPESA] CONFIG ERROR: {msg}")
         return None, msg
 
-    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    url = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
 
     for attempt in range(1, 3):  # try twice
         try:
@@ -113,7 +113,7 @@ def initiate_mpesa_payment(phone, amount, order_id):
 
     try:
         response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
             json=payload,
             headers={"Authorization": f"Bearer {token}"},
             timeout=20,
@@ -162,7 +162,7 @@ def verify_mpesa_payment(checkout_request_id):
 
     try:
         response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/querystatus",
+            "https://api.safaricom.co.ke/mpesa/stkpush/v1/querystatus",
             json=payload,
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,

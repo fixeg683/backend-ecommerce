@@ -113,10 +113,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # -------------------------
 # M-PESA
 # -------------------------
-MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', '')
-MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', '')
-MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '174379')
-MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')
+MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', 'PDnJ7OUF6DKvOX3dATyhoBlvyhyCpu4AFrtGxO8pAEiPFiMU')
+MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', 'C4ry1pHCrTALwU9C2v1fQ4ytWRQvhAadNzqAW8kQHDdmQ272Bls98EsAQ9RwaQjh')
+MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '4053577')
+MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', '0841b9e4576d951d18a5c44078cdcda2b6e3265f89493109b6afc409865d7315')
 BASE_URL = os.environ.get('BASE_URL', 'https://backend-ecommerce-3-href.onrender.com')
 
 # -------------------------
