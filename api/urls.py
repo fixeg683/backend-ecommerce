@@ -56,4 +56,14 @@ urlpatterns = [
         mpesa_health,
         name='mpesa-health'
     ),
+
+    # -----------------------------------
+    # ORDERS
+    # -----------------------------------
+
+    path(
+        'orders/my-orders/',
+        my_orders,
+        name='my-orders'
+    ),
 ]

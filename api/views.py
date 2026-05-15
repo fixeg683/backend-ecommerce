@@ -1,4 +1,5 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
@@ -8,6 +9,8 @@ import base64
 from datetime import datetime
 
 from .mpesa_utils import get_access_token
+from .models import Order
+from .serializers import OrderSerializer
 
 
 # -----------------------------------
@@ -228,4 +231,23 @@ def mpesa_health(request):
         return Response({
             "status": "unhealthy", 
             "message": err
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# -----------------------------------
+# MY ORDERS
+# -----------------------------------
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_orders(request):
+    try:
+        user = request.user
+        orders = Order.objects.filter(user=user).order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({
+            "success": False,
+            "message": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
