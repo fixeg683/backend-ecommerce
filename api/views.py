@@ -1,9 +1,8 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
-from django.http import JsonResponse
 from django.contrib.auth.models import User
 import requests
 import base64
@@ -19,6 +18,8 @@ from .serializers import OrderSerializer, ProductSerializer
 # -----------------------------------
 
 @api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def api_home(request):
     return Response({
         "message": "Backend API running successfully"
@@ -26,10 +27,11 @@ def api_home(request):
 
 
 # -----------------------------------
-# REGISTER (NEW)
+# REGISTER
 # -----------------------------------
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def register_user(request):
     username = request.data.get('username', '').strip()
@@ -67,10 +69,14 @@ def register_user(request):
 
 
 # -----------------------------------
-# PRODUCTS (NEW)
+# PRODUCTS
+# @authentication_classes([]) is critical — without it, DRF will attempt JWT
+# authentication on any request that has an Authorization header, and will
+# return 401 if the token is expired, even though the view is AllowAny.
 # -----------------------------------
 
 @api_view(['GET'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def product_list(request):
     products = Product.objects.select_related('category').all()
@@ -79,6 +85,7 @@ def product_list(request):
 
 
 @api_view(['GET'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def product_detail(request, pk):
     try:
@@ -90,8 +97,7 @@ def product_detail(request, pk):
 
 
 # -----------------------------------
-# INITIATE PAYMENT  (replaces /payment/initiate/)
-# also registered as /pay/ for frontend compatibility
+# INITIATE PAYMENT / PAY
 # -----------------------------------
 
 @api_view(['POST'])
@@ -192,9 +198,10 @@ def initiate_payment(request):
 # -----------------------------------
 
 @api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def verify_payment(request):
     try:
-        # Accept both key names for compatibility
         checkout_id = (
             request.data.get("checkout_request_id") or
             request.data.get("checkout_id")
@@ -214,7 +221,6 @@ def verify_payment(request):
         if order.is_paid:
             return Response({"success": True, "confirmed": True, "message": "Payment confirmed"})
 
-        # Not yet confirmed — callback hasn't fired
         return Response({"success": False, "confirmed": False, "message": "Payment pending"})
 
     except Exception as e:
@@ -229,12 +235,13 @@ def verify_payment(request):
 # -----------------------------------
 
 @api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def mpesa_callback(request):
     try:
         data = request.data
         print("M-PESA CALLBACK:", data)
 
-        # Parse callback body
         body = data.get('Body', {})
         stk = body.get('stkCallback', {})
         result_code = stk.get('ResultCode')
@@ -246,7 +253,6 @@ def mpesa_callback(request):
                 order.is_paid = True
                 order.status = 'Completed'
                 order.save()
-                # Mark all order items as purchased
                 order.items.update(purchased=True)
             except Order.DoesNotExist:
                 pass
@@ -262,6 +268,8 @@ def mpesa_callback(request):
 # -----------------------------------
 
 @api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def check_download_access(request):
     unlocked = request.query_params.get("unlocked")
     if unlocked == "true":
@@ -274,6 +282,8 @@ def check_download_access(request):
 # -----------------------------------
 
 @api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def download_file(request):
     unlocked = request.query_params.get("unlocked")
     if unlocked != "true":
@@ -289,6 +299,8 @@ def download_file(request):
 # -----------------------------------
 
 @api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def mpesa_health(request):
     token, err = get_access_token()
     if token:
