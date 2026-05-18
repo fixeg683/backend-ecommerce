@@ -5,20 +5,25 @@ from .models import Product, Category, Order, OrderItem
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
-        model = Category
+        model  = Category
         fields = ['id', 'name']
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    image_url = serializers.SerializerMethodField()
+    category_name    = serializers.CharField(source='category.name', read_only=True)
+    image_url        = serializers.SerializerMethodField()
+    download_url     = serializers.SerializerMethodField()
 
     class Meta:
-        model = Product
+        model  = Product
         fields = [
             'id', 'name', 'description', 'price',
-            'image', 'image_url', 'file',
-            'stock', 'category', 'category_name', 'created_at'
+            'product_type', 'is_ebook',
+            'author', 'page_count',
+            'image', 'image_url',
+            'file', 'ebook_file', 'download_url',
+            'stock', 'category', 'category_name',
+            'created_at',
         ]
 
     def get_image_url(self, obj):
@@ -31,30 +36,37 @@ class ProductSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(url)
         return None
 
+    def get_download_url(self, obj):
+        """
+        Returns the best available download URL for paid users.
+        Priority: download_url_override > ebook_file > file
+        """
+        return obj.downloadable_file
+
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)
+    product    = ProductSerializer(read_only=True)
     product_id = serializers.IntegerField(write_only=True)
 
     class Meta:
-        model = OrderItem
+        model  = OrderItem
         fields = ['id', 'product', 'product_id', 'purchased']
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True, read_only=True)
+    items    = OrderItemSerializer(many=True, read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
 
     class Meta:
-        model = Order
+        model  = Order
         fields = [
             'id', 'username', 'total_amount',
             'status', 'is_paid', 'phone',
-            'created_at', 'items'
+            'created_at', 'items',
         ]
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
+        model  = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
