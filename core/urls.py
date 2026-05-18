@@ -29,9 +29,7 @@ def home(request):
 urlpatterns = [
     path('', home),
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
-
-    # JWT auth endpoints — required by frontend AuthContext
+    path('api/', include('api.urls')),          # ← includes api/urls.py ONLY, never core/urls.py
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
