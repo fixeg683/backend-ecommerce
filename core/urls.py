@@ -1,44 +1,37 @@
-from django.urls import path
-from .views import *
+from django.contrib import admin
+from django.urls import path, include
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def home(request):
+    return Response({
+        "message": "E-Commerce API is running 🚀",
+        "endpoints": {
+            "api": "/api/",
+            "admin": "/admin/",
+            "login": "/api/token/",
+            "refresh": "/api/token/refresh/",
+            "register": "/api/register/",
+            "products": "/api/products/",
+        }
+    })
+
 
 urlpatterns = [
+    path('', home),
+    path('admin/', admin.site.urls),
+    path('api/', include('api.urls')),
 
-    # -----------------------------------
-    # API HOME
-    # -----------------------------------
-    path('', api_home, name='api-home'),
-
-    # -----------------------------------
-    # AUTH
-    # -----------------------------------
-    path('register/', register_user, name='register'),
-
-    # -----------------------------------
-    # PRODUCTS
-    # -----------------------------------
-    path('products/', product_list, name='product-list'),
-    path('products/<int:pk>/', product_detail, name='product-detail'),
-
-    # -----------------------------------
-    # PAYMENT ROUTES
-    # Legacy path kept for admin/testing; /pay/ added for frontend
-    # -----------------------------------
-    path('payment/initiate/', initiate_payment, name='initiate-payment'),
-    path('pay/', initiate_payment, name='pay'),           # ← frontend calls this
-    path('payment/verify/', verify_payment, name='verify-payment-legacy'),
-    path('verify-payment/', verify_payment, name='verify-payment'),  # ← frontend calls this
-    path('payment/callback/', mpesa_callback, name='mpesa-callback'),
-
-    # -----------------------------------
-    # DOWNLOAD ROUTES
-    # -----------------------------------
-    path('downloads/check/', check_download_access, name='check-download-access'),
-    path('downloads/file/', download_file, name='download-file'),
-
-    path('mpesa-health/', mpesa_health, name='mpesa-health'),
-
-    # -----------------------------------
-    # ORDERS
-    # -----------------------------------
-    path('orders/my-orders/', my_orders, name='my-orders'),
+    # JWT auth endpoints — required by frontend AuthContext
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
