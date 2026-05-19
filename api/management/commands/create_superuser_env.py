@@ -16,7 +16,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         username = os.environ.get("DJANGO_SUPERUSER_USERNAME", "admin").strip()
         email    = os.environ.get("DJANGO_SUPERUSER_EMAIL",    "admin@example.com").strip()
-        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD", "YourStrongPassword123!").strip()
+        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD", "StrongPassword123").strip()
 
         if not password:
             self.stderr.write(
