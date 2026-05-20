@@ -4,6 +4,33 @@ from django.core.validators import FileExtensionValidator
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
 
 
+digital_file_validator = FileExtensionValidator(
+    allowed_extensions=[
+        # Software
+        'exe',
+        'zip',
+        'dmg',
+        'sh',
+        'bin',
+        'msi',
+
+        # Videos
+        'mp4',
+        'mkv',
+
+        # Documents / ebooks
+        'pdf',
+        'epub',
+        'doc',
+        'docx',
+
+        # Archives
+        'rar',
+        '7z'
+    ]
+)
+
+
 class Category(models.Model):
     name = models.CharField(max_length=100)
 
@@ -42,9 +69,7 @@ class Product(models.Model):
         storage=RawMediaCloudinaryStorage(),
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(
-            allowed_extensions=['exe', 'zip', 'dmg', 'sh', 'bin', 'msi', 'mp4', 'mkv']
-        )]
+        validators=[digital_file_validator]
     )
 
     # E-Book file (PDF / ePub / MOBI)
