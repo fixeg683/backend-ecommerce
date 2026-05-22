@@ -59,9 +59,15 @@ TEMPLATES = [
     },
 ]
 
+# Normalize DATABASE_URL: Supabase dashboard sometimes shows an https:// URL
+# but dj-database-url requires postgresql://
+_db_url = os.environ.get('DATABASE_URL', '')
+if _db_url.startswith('https://'):
+    _db_url = _db_url.replace('https://', 'postgresql://', 1)
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
+        default=_db_url,
         conn_max_age=600,
         ssl_require=True
     )
