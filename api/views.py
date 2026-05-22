@@ -1,285 +1,241 @@
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
 
-from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment, get_access_token
-from .models import Order, OrderItem, Product
-from .serializers import OrderSerializer, ProductSerializer
-
-
-# -----------------------------------
-# HOME API
-# -----------------------------------
-
-@api_view(['GET'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def api_home(request):
-    return Response({"message": "Backend API running successfully"})
+from .models import Product, Order, OrderItem
+from .serializers import ProductSerializer
 
 
-# -----------------------------------
-# REGISTER
-# -----------------------------------
+# =========================
+# AUTH
+# =========================
 
 @api_view(['POST'])
-@authentication_classes([])
 @permission_classes([AllowAny])
 def register_user(request):
-    username = request.data.get('username', '').strip()
-    email    = request.data.get('email', '').strip()
-    password = request.data.get('password', '')
+    username = request.data.get("username")
+    email = request.data.get("email")
+    password = request.data.get("password")
 
-    if not username or not password:
-        return Response(
-            {"detail": "Username and password are required."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
     if User.objects.filter(username=username).exists():
         return Response(
-            {"detail": "A user with that username already exists."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    if email and User.objects.filter(email=email).exists():
-        return Response(
-            {"detail": "A user with that email already exists."},
+            {"error": "Username already exists"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    user = User.objects.create_user(username=username, email=email, password=password)
-    return Response(
-        {"detail": "Account created successfully.", "username": user.username},
-        status=status.HTTP_201_CREATED
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password
     )
 
-
-# -----------------------------------
-# PRODUCTS
-# @authentication_classes([]) prevents an expired token from causing 401
-# on a public endpoint before the permission check even runs.
-# -----------------------------------
-
-@api_view(['GET'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def product_list(request):
-    products = Product.objects.select_related('category').all()
-    serializer = ProductSerializer(products, many=True, context={'request': request})
-    return Response(serializer.data)
-
-
-@api_view(['GET'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def product_detail(request, pk):
-    try:
-        product = Product.objects.select_related('category').get(pk=pk)
-    except Product.DoesNotExist:
-        return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-    serializer = ProductSerializer(product, context={'request': request})
-    return Response(serializer.data)
-
-
-# -----------------------------------
-# INITIATE PAYMENT  (/api/pay/ and /api/payment/initiate/)
-# Uses the mpesa_utils helper which handles sandbox vs production,
-# phone formatting, retries, and friendly error messages.
-# -----------------------------------
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def initiate_payment(request):
-    phone       = request.data.get("phone", "").strip()
-    amount      = request.data.get("amount", 1)
-    product_ids = request.data.get("product_ids", [])
-
-    if not phone:
-        return Response(
-            {"success": False, "error": "Phone number is required."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Create the order in DB first so we have an order_id for the reference
-    order = Order.objects.create(
-        user=request.user,
-        total_amount=amount,
-        phone=phone,
-        status='Pending',
-        is_paid=False,
-    )
-    for pid in product_ids:
-        try:
-            product = Product.objects.get(pk=pid)
-            OrderItem.objects.create(order=order, product=product)
-        except Product.DoesNotExist:
-            pass
-
-    # Fire STK Push via the utility (handles auth, formatting, retries)
-    result = initiate_mpesa_payment(phone=phone, amount=amount, order_id=order.id)
-
-    if "error" in result:
-        # Clean up the pending order so we don't leave orphans
-        order.delete()
-        return Response(
-            {"success": False, "error": result["error"]},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Store the CheckoutRequestID so the callback can find the order
-    checkout_id = result.get("CheckoutRequestID")
-    order.checkout_request_id = checkout_id
-    order.save(update_fields=["checkout_request_id"])
+    refresh = RefreshToken.for_user(user)
 
     return Response({
-        "success": True,
-        "CheckoutRequestID": checkout_id,
-        "checkout_id": checkout_id,
-        "message": "STK Push sent successfully. Enter your M-Pesa PIN."
+        "message": "User created successfully",
+        "refresh": str(refresh),
+        "access": str(refresh.access_token),
     })
 
 
-# -----------------------------------
-# VERIFY PAYMENT  (/api/verify-payment/ and /api/payment/verify/)
-# First checks our DB (fastest path), then queries Safaricom if needed.
-# -----------------------------------
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    username = request.data.get("username")
+    password = request.data.get("password")
+
+    user = authenticate(username=username, password=password)
+
+    if user is not None:
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        })
+
+    return Response(
+        {"error": "Invalid credentials"},
+        status=status.HTTP_401_UNAUTHORIZED
+    )
+
+
+# =========================
+# PRODUCTS
+# =========================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_products(request):
+    products = Product.objects.all().order_by('-id')
+    serializer = ProductSerializer(products, many=True)
+
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_product(request, pk):
+    try:
+        product = Product.objects.get(id=pk)
+        serializer = ProductSerializer(product)
+
+        return Response(serializer.data)
+
+    except Product.DoesNotExist:
+        return Response(
+            {"error": "Product not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+# =========================
+# CREATE ORDER
+# =========================
 
 @api_view(['POST'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def verify_payment(request):
-    checkout_id = (
-        request.data.get("checkout_request_id") or
-        request.data.get("checkout_id", "")
-    ).strip()
+@permission_classes([IsAuthenticated])
+def create_order(request):
+    items = request.data.get("items", [])
 
-    if not checkout_id:
+    if not items:
         return Response(
-            {"success": False, "message": "Checkout ID is required."},
+            {"error": "No items provided"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # 1 — check our own DB first (populated by the M-Pesa callback)
-    try:
-        order = Order.objects.get(checkout_request_id=checkout_id)
-        if order.is_paid:
-            return Response({"success": True, "confirmed": True,
-                             "message": "Payment confirmed."})
-    except Order.DoesNotExist:
-        return Response({"success": False, "confirmed": False,
-                         "message": "Order not found."})
+    order = Order.objects.create(
+        user=request.user,
+        is_paid=False,
+        payment_status="pending"
+    )
 
-    # 2 — DB not yet updated; ask Safaricom directly
-    result = verify_mpesa_payment(checkout_id)
+    total_price = 0
 
-    if result.get("ResultCode") == "pending":
-        return Response({"success": False, "confirmed": False,
-                         "message": "Payment still processing."})
+    for item in items:
+        try:
+            product = Product.objects.get(id=item["product_id"])
 
-    if str(result.get("ResultCode", "")) == "0":
-        order.is_paid = True
-        order.status = 'Completed'
-        order.save()
-        order.items.update(purchased=True)
-        return Response({"success": True, "confirmed": True,
-                         "message": "Payment confirmed."})
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=item.get("quantity", 1)
+            )
 
-    # Non-zero ResultCode = user cancelled / wrong PIN / etc.
-    return Response({"success": False, "confirmed": False,
-                     "message": result.get("ResultDesc", "Payment not confirmed.")})
+            total_price += float(product.price)
+
+        except Product.DoesNotExist:
+            continue
+
+    order.total_price = total_price
+    order.save()
+
+    return Response({
+        "success": True,
+        "order_id": order.id,
+        "total_price": total_price
+    })
 
 
-# -----------------------------------
-# M-PESA CALLBACK  (/api/payment/callback/)
-# Called by Safaricom servers — marks orders paid in DB.
-# -----------------------------------
+# =========================
+# PAYMENT VERIFY
+# =========================
 
 @api_view(['POST'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def mpesa_callback(request):
+@permission_classes([IsAuthenticated])
+def verify_payment(request):
+    order_id = request.data.get("order_id")
+
+    if not order_id:
+        return Response(
+            {"success": False, "message": "Order ID required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     try:
-        body        = request.data.get('Body', {})
-        stk         = body.get('stkCallback', {})
-        result_code = stk.get('ResultCode')
-        checkout_id = stk.get('CheckoutRequestID')
+        order = Order.objects.get(
+            id=order_id,
+            user=request.user
+        )
 
-        print(f"[CALLBACK] checkout_id={checkout_id} result_code={result_code}")
+        order.is_paid = True
+        order.payment_status = "completed"
+        order.save()
 
-        if checkout_id and result_code == 0:
-            try:
-                order = Order.objects.get(checkout_request_id=checkout_id)
-                order.is_paid = True
-                order.status  = 'Completed'
-                order.save()
-                order.items.update(purchased=True)
-                print(f"[CALLBACK] Order {order.id} marked as paid.")
-            except Order.DoesNotExist:
-                print(f"[CALLBACK] No order found for checkout_id={checkout_id}")
+        return Response({
+            "success": True,
+            "message": "Payment completed successfully",
+            "downloads_unlocked": True,
+            "order_id": order.id
+        })
 
-        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
-
-    except Exception as e:
-        print(f"[CALLBACK] Exception: {e}")
-        return Response({"ResultCode": 1, "ResultDesc": str(e)})
+    except Order.DoesNotExist:
+        return Response({
+            "success": False,
+            "message": "Order not found"
+        }, status=status.HTTP_404_NOT_FOUND)
 
 
-# -----------------------------------
-# CHECK DOWNLOAD ACCESS
-# -----------------------------------
-
-@api_view(['GET'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def check_download_access(request):
-    unlocked = request.query_params.get("unlocked")
-    if unlocked == "true":
-        return Response({"success": True,  "downloads_unlocked": True})
-    return Response({"success": False, "downloads_unlocked": False})
-
-
-# -----------------------------------
-# DOWNLOAD FILE
-# -----------------------------------
-
-@api_view(['GET'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def download_file(request):
-    if request.query_params.get("unlocked") != "true":
-        return Response({"success": False, "message": "Payment required"},
-                        status=status.HTTP_403_FORBIDDEN)
-    return Response({"success": True, "file_url": "https://example.com/file.zip"})
-
-
-# -----------------------------------
-# M-PESA HEALTH CHECK
-# -----------------------------------
-
-@api_view(['GET'])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def mpesa_health(request):
-    token, err = get_access_token()
-    if token:
-        return Response({"status": "healthy",
-                         "message": "M-Pesa credentials are valid and working."})
-    return Response({"status": "unhealthy", "message": err},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# -----------------------------------
-# MY ORDERS
-# -----------------------------------
+# =========================
+# USER DOWNLOADS
+# =========================
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def my_orders(request):
-    try:
-        orders     = Order.objects.filter(user=request.user).order_by('-created_at')
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data)
-    except Exception as e:
-        return Response({"success": False, "message": str(e)},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+def user_downloads(request):
+
+    paid_orders = Order.objects.filter(
+        user=request.user,
+        is_paid=True
+    )
+
+    products = []
+
+    for order in paid_orders:
+        order_items = OrderItem.objects.filter(order=order)
+
+        for item in order_items:
+
+            if item.product:
+                products.append({
+                    "id": item.product.id,
+                    "name": item.product.name,
+                    "price": item.product.price,
+                    "image": item.product.image.url if item.product.image else "",
+                    "digital_file": item.product.digital_file.url if item.product.digital_file else "",
+                })
+
+    return Response({
+        "paid": True,
+        "products": products
+    })
+
+
+# =========================
+# USER ORDERS
+# =========================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_orders(request):
+
+    orders = Order.objects.filter(
+        user=request.user
+    ).order_by('-id')
+
+    data = []
+
+    for order in orders:
+        data.append({
+            "id": order.id,
+            "is_paid": order.is_paid,
+            "payment_status": order.payment_status,
+            "total_price": order.total_price
+        })
+
+    return Response(data)
