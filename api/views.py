@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 
 from .models import Product, Order, OrderItem
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer, RegisterSerializer
 
 
 # =========================
@@ -18,29 +18,18 @@ from .serializers import ProductSerializer
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    username = request.data.get("username")
-    email = request.data.get("email")
-    password = request.data.get("password")
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
 
-    if User.objects.filter(username=username).exists():
-        return Response(
-            {"error": "Username already exists"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({
+            "message": "User created successfully",
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        })
 
-    user = User.objects.create_user(
-        username=username,
-        email=email,
-        password=password
-    )
-
-    refresh = RefreshToken.for_user(user)
-
-    return Response({
-        "message": "User created successfully",
-        "refresh": str(refresh),
-        "access": str(refresh.access_token),
-    })
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
