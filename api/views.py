@@ -1,3 +1,4 @@
+from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -15,11 +16,13 @@ from .serializers import ProductSerializer, RegisterSerializer
 # AUTH
 # =========================
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def register_user(request):
-    serializer = RegisterSerializer(data=request.data)
-    if serializer.is_valid():
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
 
@@ -27,9 +30,7 @@ def register_user(request):
             "message": "User created successfully",
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-        })
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        }, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
