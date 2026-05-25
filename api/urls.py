@@ -1,4 +1,5 @@
 from django.urls import path
+from django.http import JsonResponse
 
 from .views import (
     RegisterView,
@@ -11,7 +12,27 @@ from .views import (
     user_orders,
 )
 
+
+def api_root(request):
+    return JsonResponse({
+        "message": "Ecommerce API is running",
+        "endpoints": {
+            "register": "/api/register/",
+            "login": "/api/login/",
+            "token": "/api/token/",
+            "products": "/api/products/",
+            "create_order": "/api/create-order/",
+            "orders": "/api/orders/",
+            "payment_verify": "/api/payment/verify/",
+            "downloads": "/api/downloads/",
+        }
+    })
+
+
 urlpatterns = [
+
+    # API ROOT
+    path('', api_root),
 
     # =========================
     # AUTH
