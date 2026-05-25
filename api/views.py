@@ -107,44 +107,25 @@ def get_product(request, pk):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order(request):
-    items = request.data.get("items", [])
+    phone_number = request.data.get('phone_number')
+    amount = request.data.get('amount')
 
-    if not items:
+    if not phone_number:
         return Response(
-            {"error": "No items provided"},
+            {"error": "Phone number required"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    order = Order.objects.create(
-        user=request.user,
-        is_paid=False,
-        payment_status="pending"
-    )
-
-    total_price = 0
-
-    for item in items:
-        try:
-            product = Product.objects.get(id=item["product_id"])
-
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=item.get("quantity", 1)
-            )
-
-            total_price += float(product.price)
-
-        except Product.DoesNotExist:
-            continue
-
-    order.total_price = total_price
-    order.save()
+    if not amount:
+        return Response(
+            {"error": "Amount required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     return Response({
-        "success": True,
-        "order_id": order.id,
-        "total_price": total_price
+        "message": "Order created successfully",
+        "phone_number": phone_number,
+        "amount": amount,
     })
 
 
