@@ -10,6 +10,7 @@ from django.contrib.auth import authenticate
 
 from .models import Product, Order, OrderItem
 from .serializers import ProductSerializer, RegisterSerializer
+from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment
 
 
 # =========================
@@ -107,25 +108,49 @@ def get_product(request, pk):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order(request):
-    phone_number = request.data.get('phone_number')
+    phone_number = request.data.get('phone_number') or request.data.get('phone')
     amount = request.data.get('amount')
+    product_ids = request.data.get('product_ids', [])
 
     if not phone_number:
-        return Response(
-            {"error": "Phone number required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Phone number required"}, status=status.HTTP_400_BAD_REQUEST)
 
     if not amount:
-        return Response(
-            {"error": "Amount required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Amount required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Create order record
+    order = Order.objects.create(
+        user=request.user,
+        total_amount=amount,
+        phone=phone_number,
+        status='Pending'
+    )
+
+    # Attach items if provided
+    for pid in product_ids:
+        try:
+            product = Product.objects.get(id=pid)
+            OrderItem.objects.create(order=order, product=product)
+        except Product.DoesNotExist:
+            continue
+
+    # Initiate M-Pesa STK Push
+    result = initiate_mpesa_payment(phone_number, amount, order.id)
+
+    if isinstance(result, dict) and result.get('error'):
+        order.delete()
+        return Response({"error": result.get('error')}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Save Safaricom CheckoutRequestID if present
+    checkout_id = result.get('CheckoutRequestID') or result.get('checkoutRequestID')
+    if checkout_id:
+        order.checkout_request_id = checkout_id
+        order.save()
 
     return Response({
-        "message": "Order created successfully",
-        "phone_number": phone_number,
-        "amount": amount,
+        "message": "STK push sent",
+        "order_id": order.id,
+        "CheckoutRequestID": checkout_id,
     })
 
 
@@ -136,36 +161,38 @@ def create_order(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_payment(request):
-    order_id = request.data.get("order_id")
+    checkout_request_id = request.data.get("checkout_request_id") or request.data.get("CheckoutRequestID")
 
-    if not order_id:
-        return Response(
-            {"success": False, "message": "Order ID required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    if not checkout_request_id:
+        return Response({"success": False, "message": "checkout_request_id required"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         order = Order.objects.get(
-            id=order_id,
+            checkout_request_id=checkout_request_id,
             user=request.user
         )
-
-        order.is_paid = True
-        order.payment_status = "completed"
-        order.save()
-
-        return Response({
-            "success": True,
-            "message": "Payment completed successfully",
-            "downloads_unlocked": True,
-            "order_id": order.id
-        })
-
     except Order.DoesNotExist:
-        return Response({
-            "success": False,
-            "message": "Order not found"
-        }, status=status.HTTP_404_NOT_FOUND)
+        return Response({"success": False, "message": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    result = verify_mpesa_payment(checkout_request_id)
+
+    if isinstance(result, dict) and result.get('error'):
+        return Response({"success": False, "message": result.get('error')}, status=status.HTTP_400_BAD_REQUEST)
+
+    if result.get('ResultCode') == 'pending' or str(result.get('ResultCode')) == 'pending':
+        return Response({"success": False, "confirmed": False, "message": "Payment still processing"})
+
+    if str(result.get('ResultCode')) == '0' or str(result.get('ResultCode')) == '0.0':
+        order.is_paid = True
+        order.status = 'Completed'
+        order.save()
+        return Response({"success": True, "confirmed": True, "order_id": order.id})
+
+    return Response({
+        "success": False,
+        "confirmed": False,
+        "message": result.get('ResultDesc', 'Payment not confirmed')
+    })
 
 
 # =========================
@@ -186,7 +213,7 @@ def user_downloads(request):
     for order in paid_orders:
         order_items = OrderItem.objects.filter(order=order)
 
-        for item in order_items:
+                for item in order_items:
 
             if item.product:
                 products.append({
@@ -194,7 +221,7 @@ def user_downloads(request):
                     "name": item.product.name,
                     "price": item.product.price,
                     "image": item.product.image.url if item.product.image else "",
-                    "digital_file": item.product.digital_file.url if item.product.digital_file else "",
+                    "digital_file": item.product.downloadable_file if item.product.downloadable_file else "",
                 })
 
     return Response({
@@ -221,8 +248,8 @@ def user_orders(request):
         data.append({
             "id": order.id,
             "is_paid": order.is_paid,
-            "payment_status": order.payment_status,
-            "total_price": order.total_price
+            "status": order.status,
+            "total_amount": order.total_amount
         })
 
     return Response(data)

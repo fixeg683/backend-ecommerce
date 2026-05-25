@@ -133,7 +133,7 @@ MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', 'PDnJ7OUF6DKvOX3dATyho
 MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', 'C4ry1pHCrTALwU9C2v1fQ4ytWRQvhAadNzqAW8kQHDdmQ272Bls98EsAQ9RwaQjh')
 MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE', '4053577')
 MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', '0841b9e4576d951d18a5c44078cdcda2b6e3265f89493109b6afc409865d7315')
-BASE_URL = os.environ.get('BASE_URL', 'https://backend-ecommerce-1-avn4.onrender.com')
+BASE_URL = os.environ.get('BASE_URL', 'https://backend-ecommerce-3-2hqt.onrender.com')
 
 # -------------------------
 # LOGGING
