@@ -46,21 +46,37 @@ def register_user(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_user(request):
-    username = request.data.get("username")
-    password = request.data.get("password")
+    email = request.data.get('email')
+    password = request.data.get('password')
 
-    user = authenticate(username=username, password=password)
+    try:
+        user_obj = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response(
+            {"message": "Invalid credentials"},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    user = authenticate(
+        username=user_obj.username,
+        password=password
+    )
 
     if user is not None:
         refresh = RefreshToken.for_user(user)
 
         return Response({
+            "token": str(refresh.access_token),
             "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            }
         })
 
     return Response(
-        {"error": "Invalid credentials"},
+        {"message": "Invalid credentials"},
         status=status.HTTP_401_UNAUTHORIZED
     )
 
