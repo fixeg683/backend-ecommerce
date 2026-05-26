@@ -8,7 +8,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-secret-key')
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,backend-ecommerce-3-2hqt.onrender.com').split(',')
+_default_hosts = 'localhost,127.0.0.1,backend-ecommerce-3-2hqt.onrender.com'
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', _default_hosts).split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -107,7 +108,25 @@ CLOUDINARY_STORAGE = {
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+_extra_origins = os.environ.get('CORS_ALLOWED_ORIGINS_EXTRA', '')
+CORS_ALLOWED_ORIGINS = [
+    "https://nexusapp-five.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+] + ([o.strip() for o in _extra_origins.split(',')] if _extra_origins else [])
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "authorization",
+    "content-type",
+    "accept",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
