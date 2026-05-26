@@ -265,15 +265,14 @@ def user_downloads(request):
     for order in paid_orders:
         order_items = OrderItem.objects.filter(order=order)
 
-                for item in order_items:
-
+        for item in order_items:
             if item.product:
                 products.append({
                     "id": item.product.id,
                     "name": item.product.name,
                     "price": item.product.price,
                     "image": item.product.image.url if item.product.image else "",
-                    "digital_file": item.product.downloadable_file if item.product.downloadable_file else "",
+                    "downloadable_file": item.product.downloadable_file if item.product.downloadable_file else "",
                 })
 
     return Response({
