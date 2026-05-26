@@ -196,6 +196,58 @@ def verify_payment(request):
 
 
 # =========================
+# MPESA CALLBACK
+# =========================
+import json
+import logging
+logger = logging.getLogger(__name__)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def mpesa_callback(request):
+    try:
+        data = request.data
+        if not data:
+            data = json.loads(request.body)
+            
+        logger.info(f"M-Pesa Callback Data: {data}")
+        
+        stk_callback = data.get('Body', {}).get('stkCallback', {})
+        result_code = stk_callback.get('ResultCode')
+        checkout_request_id = stk_callback.get('CheckoutRequestID')
+        
+        if not checkout_request_id:
+            return Response({"ResultCode": 0, "ResultDesc": "Accepted, but missing checkout ID"})
+
+        try:
+            order = Order.objects.get(checkout_request_id=checkout_request_id)
+        except Order.DoesNotExist:
+            return Response({"ResultCode": 0, "ResultDesc": "Accepted, order not found"})
+
+        if str(result_code) == '0' or str(result_code) == '0.0':
+            order.is_paid = True
+            order.status = 'Completed'
+        else:
+            order.status = 'Failed'
+            
+        order.save()
+
+        # Always return Success to Safaricom so they stop retrying
+        return Response({
+            "ResultCode": 0,
+            "ResultDesc": "Accepted"
+        })
+
+    except Exception as e:
+        logger.error(f"Callback error: {str(e)}")
+        # Still return 200 so Safaricom doesn't retry on our internal errors
+        return Response({
+            "ResultCode": 0,
+            "ResultDesc": "Accepted but errored internally"
+        })
+
+
+# =========================
 # USER DOWNLOADS
 # =========================
 

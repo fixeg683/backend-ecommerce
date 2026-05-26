@@ -8,6 +8,7 @@ from .views import (
     get_product,
     create_order,
     verify_payment,
+    mpesa_callback,
     user_downloads,
     user_orders,
 )
@@ -60,6 +61,7 @@ urlpatterns = [
     # =========================
 
     path('payment/verify/', verify_payment),
+    path('payments/callback/', mpesa_callback),
 
     # =========================
     # DOWNLOADS
