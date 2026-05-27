@@ -174,6 +174,10 @@ def verify_payment(request):
     except Order.DoesNotExist:
         return Response({"success": False, "message": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
+    # ✅ Fast path: callback already marked this order as paid — no need to query Safaricom
+    if order.is_paid:
+        return Response({"success": True, "confirmed": True, "order_id": order.id})
+
     result = verify_mpesa_payment(checkout_request_id)
 
     if isinstance(result, dict) and result.get('error'):
@@ -247,6 +251,38 @@ def mpesa_callback(request):
         })
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_product(request, product_id):
+    """
+    Returns a download URL for a product the user has paid for.
+    Fixes the 404 on GET /download/<id>/ from ProductCard.
+    """
+    # Check user has a paid order containing this product
+    paid = OrderItem.objects.filter(
+        order__user=request.user,
+        order__is_paid=True,
+        product__id=product_id
+    ).select_related('product').first()
+
+    if not paid:
+        return Response(
+            {"detail": "Purchase this product to unlock the download."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    product = paid.product
+    url = product.downloadable_file
+
+    if not url:
+        return Response(
+            {"detail": "No downloadable file is attached to this product yet."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    return Response({"download_url": url})
+
+
 # =========================
 # USER DOWNLOADS
 # =========================
@@ -291,7 +327,7 @@ def user_orders(request):
 
     orders = Order.objects.filter(
         user=request.user
-    ).order_by('-id')
+    ).order_by('-id').prefetch_related('items__product')
 
     data = []
 
@@ -300,7 +336,18 @@ def user_orders(request):
             "id": order.id,
             "is_paid": order.is_paid,
             "status": order.status,
-            "total_amount": order.total_amount
+            "total_amount": order.total_amount,
+            # ✅ Include items so CartContext can restore paidProductIds on page load
+            "items": [
+                {
+                    "product": {
+                        "id": item.product.id,
+                        "name": item.product.name,
+                    }
+                }
+                for item in order.items.all()
+                if item.product
+            ]
         })
 
     return Response(data)

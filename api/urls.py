@@ -11,6 +11,7 @@ from .views import (
     mpesa_callback,
     user_downloads,
     user_orders,
+    download_product,
 )
 
 
@@ -68,4 +69,5 @@ urlpatterns = [
     # =========================
 
     path('downloads/', user_downloads),
+    path('download/<int:product_id>/', download_product),  # ✅ fixes 404 from ProductCard
 ]
