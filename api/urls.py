@@ -17,63 +17,33 @@ from .views import (
 
 
 def api_root(request):
-    return JsonResponse({
-        "message": "Ecommerce API is running",
-        "endpoints": {
-            "register": "/api/register/",
-            "login": "/api/login/",
-            "token": "/api/token/",
-            "products": "/api/products/",
-            "create_order": "/api/create-order/",
-            "orders": "/api/orders/",
-            "payment_verify": "/api/payment/verify/",
-            "downloads": "/api/downloads/",
-        }
-    })
+    return JsonResponse({"message": "Ecommerce API is running"})
 
 
 urlpatterns = [
 
-    # API ROOT
     path('', api_root),
 
-    # =========================
     # AUTH
-    # =========================
-
     path('register/', RegisterView.as_view()),
     path('login/', login_user),
 
-    # =========================
     # PRODUCTS
-    # =========================
-
     path('products/', get_products),
     path('products/<int:pk>/', get_product),
 
-    # =========================
     # ORDERS
-    # =========================
-
     path('create-order/', create_order),
     path('orders/', user_orders),
 
-    # =========================
     # PAYMENT
-    # =========================
-
     path('payment/verify/', verify_payment),
     path('payments/callback/', mpesa_callback),
 
-    # =========================
     # DOWNLOADS
-    # =========================
-
     path('downloads/', user_downloads),
     path('download/<int:product_id>/', download_product),
 
-    # =========================
-    # EMERGENCY ADMIN RESET (remove after use)
-    # =========================
+    # EMERGENCY ADMIN RESET (remove ADMIN_RESET_TOKEN env var after use)
     path('reset-admin/', emergency_admin_reset),
 ]
