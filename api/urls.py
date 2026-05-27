@@ -12,6 +12,7 @@ from .views import (
     user_downloads,
     user_orders,
     download_product,
+    emergency_admin_reset,
 )
 
 
@@ -69,5 +70,10 @@ urlpatterns = [
     # =========================
 
     path('downloads/', user_downloads),
-    path('download/<int:product_id>/', download_product),  # ✅ fixes 404 from ProductCard
+    path('download/<int:product_id>/', download_product),
+
+    # =========================
+    # EMERGENCY ADMIN RESET (remove after use)
+    # =========================
+    path('reset-admin/', emergency_admin_reset),
 ]

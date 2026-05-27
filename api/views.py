@@ -1,3 +1,6 @@
+import os
+import hmac
+
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -6,7 +9,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 
 from .models import Product, Order, OrderItem
 from .serializers import ProductSerializer, RegisterSerializer
@@ -174,10 +177,6 @@ def verify_payment(request):
     except Order.DoesNotExist:
         return Response({"success": False, "message": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # ✅ Fast path: callback already marked this order as paid — no need to query Safaricom
-    if order.is_paid:
-        return Response({"success": True, "confirmed": True, "order_id": order.id})
-
     result = verify_mpesa_payment(checkout_request_id)
 
     if isinstance(result, dict) and result.get('error'):
@@ -251,38 +250,6 @@ def mpesa_callback(request):
         })
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def download_product(request, product_id):
-    """
-    Returns a download URL for a product the user has paid for.
-    Fixes the 404 on GET /download/<id>/ from ProductCard.
-    """
-    # Check user has a paid order containing this product
-    paid = OrderItem.objects.filter(
-        order__user=request.user,
-        order__is_paid=True,
-        product__id=product_id
-    ).select_related('product').first()
-
-    if not paid:
-        return Response(
-            {"detail": "Purchase this product to unlock the download."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
-    product = paid.product
-    url = product.downloadable_file
-
-    if not url:
-        return Response(
-            {"detail": "No downloadable file is attached to this product yet."},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-    return Response({"download_url": url})
-
-
 # =========================
 # USER DOWNLOADS
 # =========================
@@ -327,7 +294,7 @@ def user_orders(request):
 
     orders = Order.objects.filter(
         user=request.user
-    ).order_by('-id').prefetch_related('items__product')
+    ).order_by('-id')
 
     data = []
 
@@ -336,18 +303,52 @@ def user_orders(request):
             "id": order.id,
             "is_paid": order.is_paid,
             "status": order.status,
-            "total_amount": order.total_amount,
-            # ✅ Include items so CartContext can restore paidProductIds on page load
-            "items": [
-                {
-                    "product": {
-                        "id": item.product.id,
-                        "name": item.product.name,
-                    }
-                }
-                for item in order.items.all()
-                if item.product
-            ]
+            "total_amount": order.total_amount
         })
 
     return Response(data)
+
+# =========================
+# EMERGENCY ADMIN RESET
+# =========================
+import hashlib
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def emergency_admin_reset(request):
+    """
+    One-time admin password reset via secret token.
+    Hit: /api/reset-admin/?token=YOUR_RESET_TOKEN
+    Set ADMIN_RESET_TOKEN in Render env vars before deploying.
+    Remove this view after use.
+    """
+    provided = request.GET.get('token', '')
+    secret   = os.environ.get('ADMIN_RESET_TOKEN', '')
+
+    # No token configured → refuse
+    if not secret:
+        return Response({'error': 'Reset not configured.'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Constant-time compare to prevent timing attacks
+    if not hmac.compare_digest(provided, secret):
+        return Response({'error': 'Invalid token.'}, status=status.HTTP_403_FORBIDDEN)
+
+    username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
+    email    = os.environ.get('DJANGO_SUPERUSER_EMAIL',    'admin@example.com')
+    password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'Admin123!')
+
+    User = get_user_model()
+    user, created = User.objects.get_or_create(username=username)
+    user.email        = email
+    user.is_staff     = True
+    user.is_superuser = True
+    user.is_active    = True
+    user.set_password(password)
+    user.save()
+
+    return Response({
+        'status': 'ok',
+        'action': 'created' if created else 'reset',
+        'username': username,
+        'note': 'Login at /admin/ — delete ADMIN_RESET_TOKEN env var after use.',
+    })
