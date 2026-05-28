@@ -111,11 +111,12 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 CORS_ALLOW_ALL_ORIGINS = False
 _extra_origins = os.environ.get('CORS_ALLOWED_ORIGINS_EXTRA', '')
 CORS_ALLOWED_ORIGINS = [
-    "https://nexusapp-five.vercel.app",
+    "https://nexusapp-five.vercel.app",    # old Vercel URL
+    "https://nexusapp-lyart.vercel.app",   # ✅ current Vercel URL
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
-] + ([o.strip() for o in _extra_origins.split(',')] if _extra_origins else [])
+] + ([o.strip() for o in _extra_origins.split(',') if o.strip()] )
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -184,16 +185,3 @@ LOGGING = {
         },
     },
 }
-
-# =========================
-# LARGE FILE UPLOAD LIMITS
-# =========================
-
-# Django: allow up to 4 GB in a single request body
-DATA_UPLOAD_MAX_MEMORY_SIZE = 4 * 1024 * 1024 * 1024   # 4 GB in bytes
-
-# Django: allow files up to 4 GB on disk (in-memory threshold: keep at default 2.5 MB)
-FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024            # 2.5 MB — stream to disk above this
-
-# No limit on number of POST parameters (not relevant here but avoids surprises)
-DATA_UPLOAD_MAX_NUMBER_FIELDS = None
