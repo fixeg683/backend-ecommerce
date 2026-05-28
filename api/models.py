@@ -64,12 +64,15 @@ class Product(models.Model):
     image = models.ImageField(upload_to='products/', null=True, blank=True)
 
     # Software / Game / Movie file (exe, zip, dmg, etc.)
+    # ⚠️  Cloudinary free plan caps uploads at 100 MB.
+    # For files > 100 MB use "Download url override" and host on Google Drive / Mega / S3.
     file = models.FileField(
         upload_to='products/files/',
         storage=RawMediaCloudinaryStorage(),
         null=True,
         blank=True,
-        validators=[digital_file_validator]
+        validators=[digital_file_validator],
+        help_text="Direct upload (max ~100 MB). Use 'Download url override' for larger files.",
     )
 
     # E-Book file (PDF / ePub / MOBI)
@@ -90,11 +93,16 @@ class Product(models.Model):
     page_count = models.PositiveIntegerField(null=True, blank=True,
                                              help_text="Number of pages (e-books)")
 
-    # External download URL (overrides Cloudinary file if set)
+    # External download URL — USE THIS for files > 100 MB (movies, large zips)
+    # Paste a direct-download link from Google Drive, Mega, Dropbox, S3, etc.
     download_url_override = models.URLField(
         null=True,
         blank=True,
-        help_text="External download URL (overrides uploaded file if set)",
+        help_text=(
+            "⭐ USE THIS for files larger than 100 MB. "
+            "Upload the file to Google Drive / Mega / Dropbox, get a direct-download link, "
+            "and paste it here. This overrides the uploaded file above."
+        ),
     )
 
     stock      = models.IntegerField(default=10)

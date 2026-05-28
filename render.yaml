@@ -3,7 +3,7 @@ services:
     name: esoko-backend
     env: python
     buildCommand: ./build.sh
-    startCommand: gunicorn core.wsgi:application
+    startCommand: gunicorn core.wsgi:application --config gunicorn.conf.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
