@@ -33,6 +33,7 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
+
         return Response({
             "message": "User created successfully",
             "refresh": str(refresh),
@@ -49,7 +50,10 @@ def login_user(request):
     try:
         user_obj = User.objects.get(email=email)
     except User.DoesNotExist:
-        return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(
+            {"message": "Invalid credentials"},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
 
     user = authenticate(username=user_obj.username, password=password)
 
@@ -58,10 +62,17 @@ def login_user(request):
         return Response({
             "access": str(refresh.access_token),
             "refresh": str(refresh),
-            "user": {"id": user.id, "username": user.username, "email": user.email},
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            }
         })
 
-    return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    return Response(
+        {"message": "Invalid credentials"},
+        status=status.HTTP_401_UNAUTHORIZED
+    )
 
 
 # =========================
@@ -83,7 +94,10 @@ def get_product(request, pk):
         product = Product.objects.get(id=pk)
         return Response(ProductSerializer(product).data)
     except Product.DoesNotExist:
-        return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"error": "Product not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
 
 # =========================
@@ -99,6 +113,7 @@ def create_order(request):
 
     if not phone_number:
         return Response({"error": "Phone number required"}, status=status.HTTP_400_BAD_REQUEST)
+
     if not amount:
         return Response({"error": "Amount required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -163,14 +178,17 @@ def verify_payment(request):
             status=status.HTTP_404_NOT_FOUND,
         )
 
-    # Fast path: M-Pesa callback already marked this order paid
+    # Fast path — M-Pesa callback already confirmed this payment
     if order.is_paid:
         return Response({"success": True, "confirmed": True, "order_id": order.id})
 
     result = verify_mpesa_payment(checkout_request_id)
 
     if isinstance(result, dict) and result.get('error'):
-        return Response({"success": False, "message": result.get('error')}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"success": False, "message": result.get('error')},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     if str(result.get('ResultCode', '')) == 'pending':
         return Response({"success": False, "confirmed": False, "message": "Payment still processing"})
@@ -216,11 +234,13 @@ def mpesa_callback(request):
             order.status = 'Completed'
         else:
             order.status = 'Failed'
+
         order.save()
 
     except Exception as e:
         logger.error(f"Callback error: {e}")
 
+    # Always return 200 so Safaricom stops retrying
     return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
@@ -265,7 +285,7 @@ def user_downloads(request):
     products = []
 
     for order in paid_orders:
-        for item in OrderItem.objects.filter(order=order):
+        for item in OrderItem.objects.filter(order=order).select_related('product'):
             if item.product:
                 products.append({
                     "id": item.product.id,
@@ -307,7 +327,7 @@ def user_orders(request):
 
 # =========================
 # EMERGENCY ADMIN RESET
-# (delete ADMIN_RESET_TOKEN env var after use)
+# Remove ADMIN_RESET_TOKEN env var after use
 # =========================
 
 @api_view(['GET'])
@@ -323,7 +343,7 @@ def emergency_admin_reset(request):
         return Response({'error': 'Invalid token.'}, status=status.HTTP_403_FORBIDDEN)
 
     username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
-    email    = os.environ.get('DJANGO_SUPERUSER_EMAIL',    'admin@example.com')
+    email    = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com')
     password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'Admin123!')
 
     UserModel = get_user_model()
