@@ -3,51 +3,65 @@ from django.utils.html import format_html
 from .models import Category, Product, Order, OrderItem
 
 
-# 🔹 CATEGORY ADMIN (NEW)
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name")
+    list_display  = ("id", "name")
     search_fields = ("name",)
-    ordering = ("name",)
+    ordering      = ("name",)
 
 
-# 🔹 PRODUCT ADMIN
+@admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "price", "category", "file_link")
-    search_fields = ("name", "category__name")
-    list_filter = ("category", "price")
+    list_display   = ("name", "product_type", "price", "category", "author", "file_link", "ebook_link")
+    search_fields  = ("name", "category__name", "author")
+    list_filter    = ("product_type", "category")
     autocomplete_fields = ["category"]
 
+    fieldsets = (
+        ("Basic Info", {
+            "fields": ("name", "description", "price", "stock", "category", "product_type"),
+        }),
+        ("Media", {
+            "fields": ("image",),
+        }),
+        ("Software / Game / Movie File", {
+            "fields": ("file", "download_url_override"),
+            "description": "Upload exe/zip/dmg or paste an external URL.",
+        }),
+        ("E-Book", {
+            "fields": ("ebook_file", "author", "page_count"),
+            "description": "Fill these fields for e-book products (PDF, ePub, MOBI).",
+            "classes": ("collapse",),
+        }),
+    )
+
     def file_link(self, obj):
-        """
-        Display clickable download link in admin
-        """
         if obj.file:
-            return format_html(
-                '<a href="{}" target="_blank">Download File</a>',
-                obj.file.url
-            )
-        return "No file"
+            return format_html('<a href="{}" target="_blank">⬇ Software</a>', obj.file.url)
+        if obj.download_url_override:
+            return format_html('<a href="{}" target="_blank">🔗 External</a>', obj.download_url_override)
+        return "—"
+    file_link.short_description = "Download"
 
-    file_link.short_description = "File"
+    def ebook_link(self, obj):
+        if obj.ebook_file:
+            return format_html('<a href="{}" target="_blank">📖 E-Book</a>', obj.ebook_file.url)
+        return "—"
+    ebook_link.short_description = "E-Book File"
 
 
-# 🔹 ORDER ITEM INLINE (shows products inside order)
 class OrderItemInline(admin.TabularInline):
-    model = OrderItem
-    extra = 0
+    model          = OrderItem
+    extra          = 0
     readonly_fields = ("product", "purchased")
 
 
-# 🔹 ORDER ADMIN
+@admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "is_paid", "created_at")
-    list_filter = ("is_paid", "created_at")
+    list_display  = ("id", "user", "is_paid", "status", "created_at")
+    list_filter   = ("is_paid", "status", "created_at")
     search_fields = ("user__username",)
-    inlines = [OrderItemInline]
+    inlines       = [OrderItemInline]
 
 
-# 🔹 REGISTER MODELS
-admin.site.register(Product, ProductAdmin)
-admin.site.register(Order, OrderAdmin)
 admin.site.register(OrderItem)

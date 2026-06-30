@@ -1,0 +1,1 @@
+# Stub — prevents ModuleNotFoundError if a stale `from .views import *` exists

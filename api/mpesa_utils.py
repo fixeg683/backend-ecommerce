@@ -1,16 +1,23 @@
 import requests
 import base64
+import time
 from datetime import datetime
 from django.conf import settings
 
 
 def format_phone(phone):
-    phone = str(phone).strip().replace(' ', '')
-    if phone.startswith('+254'):
-        return phone[1:]
+    """Normalise phone to 254XXXXXXXXX format."""
+    phone = str(phone).strip().replace(' ', '').replace('+', '')
+    if phone.startswith('254'):
+        return phone
     if phone.startswith('0'):
         return '254' + phone[1:]
     return phone
+
+
+def _make_password(timestamp: str) -> str:
+    raw = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
+    return base64.b64encode(raw.encode()).decode()
 
 
 def get_access_token():
@@ -46,9 +53,11 @@ def initiate_mpesa_payment(phone, amount, order_id):
         print(f"[MPESA] Auth failed: {err}")
         return {"error": err}
 
+    phone = format_phone(str(phone))
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
-    password = base64.b64encode(password_str.encode()).decode()
+    password = _make_password(timestamp)
+
+    callback_url = f"{settings.BASE_URL.rstrip('/')}/api/payments/callback/"
 
     payload = {
         "BusinessShortCode": settings.MPESA_SHORTCODE,
@@ -59,16 +68,16 @@ def initiate_mpesa_payment(phone, amount, order_id):
         "PartyA": phone,
         "PartyB": settings.MPESA_SHORTCODE,
         "PhoneNumber": phone,
-        "CallBackURL": f"{settings.BASE_URL}/api/payments/callback/",
-        "AccountReference": f"INV{order_id}",
-        "TransactionDesc": "Ecom Payment"
+        "CallBackURL": callback_url,
+        "AccountReference": f"Order{order_id}",
+        "TransactionDesc": f"Payment for order {order_id}",
     }
 
-    headers = {"Authorization": f"Bearer {token}"}
+    print(f"[MPESA] STK Push → phone={phone}, amount={amount}, order={order_id}, callback={callback_url}")
 
     try:
         response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
             json=payload,
             headers=headers,
             timeout=15
@@ -95,21 +104,18 @@ def verify_mpesa_payment(checkout_request_id):
         return {"error": err}
 
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    password_str = f"{settings.MPESA_SHORTCODE}{settings.MPESA_PASSKEY}{timestamp}"
-    password = base64.b64encode(password_str.encode()).decode()
+    password = _make_password(timestamp)
 
     payload = {
         "BusinessShortCode": settings.MPESA_SHORTCODE,
         "Password": password,
         "Timestamp": timestamp,
-        "CheckoutRequestID": checkout_request_id
+        "CheckoutRequestID": checkout_request_id,
     }
-
-    headers = {"Authorization": f"Bearer {token}"}
 
     try:
         response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/querystatus",
+            "https://api.safaricom.co.ke/mpesa/stkpush/v1/querystatus",
             json=payload,
             headers=headers,
             timeout=15
