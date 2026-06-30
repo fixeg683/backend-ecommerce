@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("api", "0004_product_download_url_override"),
+        ("api", "0007_alter_product_author_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
