@@ -1,7 +1,13 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
-from cloudinary_storage.storage import RawMediaCloudinaryStorage
+from django.core.files.storage import FileSystemStorage
+
+try:
+    from cloudinary_storage.storage import RawMediaCloudinaryStorage
+except ImportError:  # pragma: no cover - optional dependency
+    class RawMediaCloudinaryStorage(FileSystemStorage):
+        pass
 
 
 class Category(models.Model):
@@ -31,6 +37,12 @@ class Product(models.Model):
         validators=[FileExtensionValidator(
             allowed_extensions=['exe', 'zip', 'dmg', 'sh', 'bin', 'msi']
         )]
+    )
+
+    download_url_override = models.URLField(
+        null=True,
+        blank=True,
+        help_text="External download URL (overrides Cloudinary file if set)"
     )
 
     stock = models.IntegerField(default=10)
