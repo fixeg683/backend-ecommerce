@@ -3,14 +3,15 @@ import hmac
 import json
 import logging
 
-from rest_framework import generics
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import generics, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
 from .models import Product, Category, Order, OrderItem
 from .serializers import (
     ProductSerializer,
@@ -20,6 +21,8 @@ from .serializers import (
 )
 from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment
 import traceback
+
+logger = logging.getLogger(__name__)
 
 # -------------------------
 # ROOT
@@ -78,6 +81,41 @@ class OrderViewSet(viewsets.ModelViewSet):
 # -------------------------
 # AUTH
 # -------------------------
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    email = request.data.get('email')
+    password = request.data.get('password')
+    username = request.data.get('username') or email.split('@')[0] if email else None
+    
+    if not email or not password:
+        return Response({"error": "Missing email or password"}, status=status.HTTP_400_BAD_REQUEST)
+        
+    if User.objects.filter(email=email).exists():
+        return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        
+    user = User.objects.create_user(username=username, email=email, password=password)
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+        }
+    }, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    user = request.user
+    return Response({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+    })
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -186,69 +224,11 @@ def pay(request):
         return Response(result, status=200)
 
     except Exception as e:
-        print(f"[PAY ERROR] {traceback.format_exc()}")
+        logger.error(f"[PAY ERROR] {traceback.format_exc()}")
         return Response({"error": f"Server error: {str(e)}"}, status=500)
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def verify_payment(request):
-    """
-    Poll M-Pesa for STK Push status.
-    Expects: { checkout_request_id }
-    """
-    try:
-        checkout_request_id = request.data.get('checkout_request_id', '').strip()
-        if not checkout_request_id:
-            return Response({"error": "checkout_request_id is required"}, status=400)
 
-        result = verify_mpesa_payment(checkout_request_id)
-
-        # Mark order paid on confirmed result
-        if str(result.get('ResultCode', '')) == '0':
-            try:
-                order = Order.objects.get(
-                    checkout_request_id=checkout_request_id,
-                    user=request.user
-                )
-                order.is_paid = True
-                order.status = 'Completed'
-                order.save()
-                order.items.all().update(purchased=True)
-            except Order.DoesNotExist:
-                pass  # already marked by callback
-
-        return Response(result, status=200)
-
-    except Exception as e:
-        print(f"[VERIFY ERROR] {traceback.format_exc()}")
-        return Response({"error": f"Server error: {str(e)}"}, status=500)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])  # Safaricom calls this — no JWT
-def mpesa_callback(request):
-    """Safaricom STK Push callback — server-side payment confirmation."""
-    try:
-        body = request.data.get('Body', {})
-        stk = body.get('stkCallback', {})
-        result_code = stk.get('ResultCode')
-        checkout_id = stk.get('CheckoutRequestID')
-
-        if str(result_code) == '0' and checkout_id:
-            try:
-                order = Order.objects.get(checkout_request_id=checkout_id)
-                order.is_paid = True
-                order.status = 'Completed'
-                order.save()
-                order.items.all().update(purchased=True)
-            except Order.DoesNotExist:
-                pass
-
-    except Exception:
-        print(f"[CALLBACK ERROR] {traceback.format_exc()}")
-
-    return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 # -------------------------
 # DOWNLOADS
@@ -265,6 +245,26 @@ def get_product(request, pk):
             {"error": "Product not found"},
             status=status.HTTP_404_NOT_FOUND
         )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_downloads(request):
+    items = OrderItem.objects.filter(
+        order__user=request.user,
+        purchased=True
+    ).select_related('product')
+    
+    products_data = []
+    for item in items:
+        product = item.product
+        products_data.append({
+            "id": product.id,
+            "name": product.name,
+            "image": product.image.url if product.image else None,
+            "description": product.description,
+        })
+        
+    return Response({"products": products_data})
 
 
 # =========================
@@ -403,9 +403,10 @@ def mpesa_callback(request):
             order.status = 'Failed'
 
         order.save()
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
     except Exception as e:
-        print(f"[DOWNLOADS ERROR] {traceback.format_exc()}")
+        logger.error(f"[CALLBACK ERROR] {traceback.format_exc()}")
         return Response({"error": str(e)}, status=500)
 
 
@@ -438,7 +439,7 @@ def download_product(request, product_id):
         return Response({"error": "No file available for this product"}, status=404)
 
     except Exception as e:
-        print(f"[DOWNLOAD ERROR] {traceback.format_exc()}")
+        logger.error(f"[DOWNLOAD ERROR] {traceback.format_exc()}")
         return Response({"error": f"Server error: {str(e)}"}, status=500)
 
 # -------------------------
@@ -458,5 +459,5 @@ def my_paid_product_ids(request):
         )
         return Response(ids)
     except Exception as e:
-        print(f"[PAID IDS ERROR] {traceback.format_exc()}")
+        logger.error(f"[PAID IDS ERROR] {traceback.format_exc()}")
         return Response({"error": str(e)}, status=500)

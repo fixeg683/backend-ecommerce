@@ -12,8 +12,8 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display   = ("name", "product_type", "price", "category", "author", "file_link", "ebook_link")
-    search_fields  = ("name", "category__name", "author")
+    list_display   = ("name", "product_type", "price", "category", "file_link")
+    search_fields  = ("name", "category__name")
     list_filter    = ("product_type", "category")
     autocomplete_fields = ["category"]
 
@@ -28,11 +28,6 @@ class ProductAdmin(admin.ModelAdmin):
             "fields": ("file", "download_url_override"),
             "description": "Upload exe/zip/dmg or paste an external URL.",
         }),
-        ("E-Book", {
-            "fields": ("ebook_file", "author", "page_count"),
-            "description": "Fill these fields for e-book products (PDF, ePub, MOBI).",
-            "classes": ("collapse",),
-        }),
     )
 
     def file_link(self, obj):
@@ -42,12 +37,6 @@ class ProductAdmin(admin.ModelAdmin):
             return format_html('<a href="{}" target="_blank">🔗 External</a>', obj.download_url_override)
         return "—"
     file_link.short_description = "Download"
-
-    def ebook_link(self, obj):
-        if obj.ebook_file:
-            return format_html('<a href="{}" target="_blank">📖 E-Book</a>', obj.ebook_file.url)
-        return "—"
-    ebook_link.short_description = "E-Book File"
 
 
 class OrderItemInline(admin.TabularInline):
