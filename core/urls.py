@@ -19,7 +19,7 @@ def home(request):
 urlpatterns = [
     path('', home),
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
-    path('api/chatbot/', include('chatbot.urls')),
     path('api/chatbot/webhooks/', include('chatbot.webhook_urls')),
+    path('api/chatbot/', include('chatbot.urls')),
+    path('api/', include('api.urls')),
 ]
