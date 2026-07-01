@@ -17,7 +17,8 @@ class ProductSerializerImageTests(SimpleTestCase):
 
         serializer = ProductSerializer(product, context={'request': request})
 
-        self.assertEqual(
-            serializer.data['image'],
-            'http://testserver/media/products/test.jpg',
-        )
+        expected = 'http://testserver/media/products/test.jpg'
+        self.assertEqual(serializer.data['image'], expected)
+        self.assertEqual(serializer.data['img'], expected)
+        self.assertEqual(serializer.data['image_url'], expected)
+        self.assertEqual(serializer.data['imageUrl'], expected)

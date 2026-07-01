@@ -4,8 +4,11 @@ from django.core.validators import FileExtensionValidator
 from django.core.files.storage import FileSystemStorage
 
 try:
-    from cloudinary_storage.storage import RawMediaCloudinaryStorage
+    from cloudinary_storage.storage import MediaCloudinaryStorage, RawMediaCloudinaryStorage
 except ImportError:  # pragma: no cover - optional dependency
+    class MediaCloudinaryStorage(FileSystemStorage):
+        pass
+
     class RawMediaCloudinaryStorage(FileSystemStorage):
         pass
 
@@ -65,9 +68,25 @@ class Product(models.Model):
         default="software",
         help_text="Type of digital product",
     )
+    author = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Book author (e-books)",
+    )
+    page_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of pages (e-books)",
+    )
 
     # Cover image (all product types)
-    image = models.ImageField(upload_to='products/', null=True, blank=True)
+    image = models.ImageField(
+        upload_to='products/',
+        storage=MediaCloudinaryStorage(),
+        null=True,
+        blank=True,
+    )
 
     # Software / Game / Movie file (exe, zip, dmg, etc.)
     # ⚠️  Cloudinary free plan caps uploads at 100 MB.
@@ -78,13 +97,20 @@ class Product(models.Model):
         null=True,
         blank=True,
         validators=[digital_file_validator],
-        help_text="Direct upload (max ~100 MB). Use 'Download url override' for larger files.",
+    )
+    ebook_file = models.FileField(
+        upload_to='products/ebooks/',
+        storage=RawMediaCloudinaryStorage(),
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'epub', 'mobi'])],
+        help_text="Upload PDF, ePub or MOBI for e-books",
     )
 
     download_url_override = models.URLField(
         null=True,
         blank=True,
-        help_text="External download URL (overrides Cloudinary file if set)"
+        help_text="External download URL (overrides uploaded file if set)"
     )
 
     stock = models.IntegerField(default=10)

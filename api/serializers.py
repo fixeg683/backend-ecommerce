@@ -12,7 +12,9 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     category_name    = serializers.CharField(source='category.name', read_only=True)
     image            = serializers.SerializerMethodField()
+    img              = serializers.SerializerMethodField()
     image_url        = serializers.SerializerMethodField()
+    imageUrl         = serializers.SerializerMethodField()
     download_url     = serializers.SerializerMethodField()
 
     class Meta:
@@ -20,7 +22,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'price',
             'product_type', 'is_ebook',
-            'image', 'image_url',
+            'image', 'img', 'image_url', 'imageUrl',
             'file', 'download_url',
             'stock', 'category', 'category_name',
             'created_at',
@@ -51,7 +53,13 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_image(self, obj):
         return self._get_image_url(obj)
 
+    def get_img(self, obj):
+        return self._get_image_url(obj)
+
     def get_image_url(self, obj):
+        return self._get_image_url(obj)
+
+    def get_imageUrl(self, obj):
         return self._get_image_url(obj)
 
     def get_download_url(self, obj):

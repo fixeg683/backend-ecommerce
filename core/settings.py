@@ -26,6 +26,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
+    'cloudinary',
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
@@ -135,5 +137,8 @@ WHATSAPP_WEBHOOK_SECRET = config('WHATSAPP_WEBHOOK_SECRET', default='')
 INSTAGRAM_WEBHOOK_SECRET = config('INSTAGRAM_WEBHOOK_SECRET', default='')
 
 CLOUDINARY_STORAGE = {
-    'SECURE': True
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
+    'API_KEY': config('CLOUDINARY_API_KEY', default=''),
+    'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
+    'SECURE': True,
 }
