@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 def api_root(request):
     return Response({"message": "Welcome to the E-Space API", "status": "Running"})
 
+
+
 # -------------------------
 # VIEWSETS
 # -------------------------
