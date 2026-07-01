@@ -14,6 +14,7 @@ from .views import (
     pay,
     verify_payment,
     mpesa_callback,
+    reset_admin,
 )
 
 router = DefaultRouter()
@@ -27,6 +28,7 @@ urlpatterns = [
     # Auth
     path('register/', register_user, name='register'),
     path('me/', current_user),
+    path('reset-admin/', reset_admin, name='reset-admin'),
 
     # JWT — must live here inside api/urls.py; core/urls.py paths are shadowed by include('api.urls')
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
