@@ -11,6 +11,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name    = serializers.CharField(source='category.name', read_only=True)
+    image            = serializers.SerializerMethodField()
     image_url        = serializers.SerializerMethodField()
     download_url     = serializers.SerializerMethodField()
 
@@ -24,6 +25,11 @@ class ProductSerializer(serializers.ModelSerializer):
             'stock', 'category', 'category_name',
             'created_at',
         ]
+
+    def get_image(self, obj):
+        if obj.image:
+            return obj.image.url
+        return None
 
     def get_image_url(self, obj):
         if obj.image:
