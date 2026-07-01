@@ -7,6 +7,13 @@ from api.models import OrderItem, Product
 from .models import ChatMessage, ChatSession, Lead, RecommendationLog, UserPreference
 
 
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def chatbot_root(request):
+    return Response({
+        "message": "Chatbot endpoint is active. Use /sessions/ to start a chat."
+    }, status=200)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_session(request):
