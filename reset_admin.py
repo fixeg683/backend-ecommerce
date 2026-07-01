@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 username = 'admin'
-password = 'MyNewPassword123!' # Change this to your desired secure password
+password = 'otana4321!' # Change this to your desired secure password
 
 try:
     user = User.objects.get(username=username)
