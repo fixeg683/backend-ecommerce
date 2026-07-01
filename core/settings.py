@@ -10,7 +10,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='dev-secret-key')
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '.ngrok-free.app',
+    'backend-ecommerce-3-2hqt.onrender.com',
+    '.onrender.com',          # covers any future Render subdomains
+    os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''),  # Render sets this automatically
+]
+ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]  # drop empty strings
 
 INSTALLED_APPS = [
     'django.contrib.admin',
