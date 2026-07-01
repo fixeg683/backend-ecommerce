@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 from api.models import Category
 import os
 
@@ -15,27 +14,19 @@ class Command(BaseCommand):
         email = os.getenv("DJANGO_SUPERUSER_EMAIL", "admin@example.com")
         password = os.getenv("DJANGO_SUPERUSER_PASSWORD", "Admin123!")
 
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={
-                "email": email,
-                "password": make_password(password),
-                "is_staff": True,
-                "is_superuser": True,
-                "is_active": True,
-            },
-        )
+        user, created = User.objects.get_or_create(username=username)
 
-        if not created:
-            user.email = email
-            user.password = make_password(password)
-            user.is_staff = True
-            user.is_superuser = True
-            user.is_active = True
-            user.save()
+        user.email = email
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        user.set_password(password)
+        user.save()
 
         self.stdout.write(
-            self.style.SUCCESS(f"Admin user '{username}' ready.")
+            self.style.SUCCESS(
+                f"Admin user '{username}' {'created' if created else 'updated'} and ready."
+            )
         )
 
         # Seed default categories

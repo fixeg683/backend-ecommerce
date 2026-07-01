@@ -93,6 +93,10 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'core.auth_backends.EmailOrUsernameBackend',
+]
+
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
