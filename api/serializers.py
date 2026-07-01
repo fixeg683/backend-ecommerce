@@ -19,9 +19,8 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'price',
             'product_type', 'is_ebook',
-            'author', 'page_count',
             'image', 'image_url',
-            'file', 'ebook_file', 'download_url',
+            'file', 'download_url',
             'stock', 'category', 'category_name',
             'created_at',
         ]

@@ -96,7 +96,7 @@ class Product(models.Model):
         """Returns the best available download URL."""
         if self.download_url_override:
             return self.download_url_override
-        if self.product_type == "ebook" and self.ebook_file:
+        if self.product_type == "ebook" and getattr(self, "ebook_file", None):
             return self.ebook_file.url
         if self.file:
             return self.file.url
