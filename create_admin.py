@@ -12,7 +12,7 @@ class Command(BaseCommand):
 
         username = os.getenv("DJANGO_SUPERUSER_USERNAME", "admin")
         email    = os.getenv("DJANGO_SUPERUSER_EMAIL",    "jacobotana96@gmail.com")
-        password = os.getenv("DJANGO_SUPERUSER_PASSWORD", "otana4321!")
+        password = os.getenv("DJANGO_SUPERUSER_PASSWORD", "adminpassword")  # Change this to your desired secure password
 
         user, created = User.objects.get_or_create(username=username)
 
