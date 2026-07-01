@@ -26,20 +26,33 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
+    def _get_image_url(self, obj):
+        image = getattr(obj, 'image', None)
+        if not image:
+            return None
+
+        try:
+            url = str(image.url)
+        except Exception:
+            return None
+
+        if not url:
+            return None
+
+        if url.startswith(('http://', 'https://')):
+            return url
+
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+
+        return url
+
     def get_image(self, obj):
-        if obj.image:
-            return obj.image.url
-        return None
+        return self._get_image_url(obj)
 
     def get_image_url(self, obj):
-        if obj.image:
-            url = str(obj.image.url)
-            if url.startswith('http'):
-                return url
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(url)
-        return None
+        return self._get_image_url(obj)
 
     def get_download_url(self, obj):
         """
