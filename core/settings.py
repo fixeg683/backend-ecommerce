@@ -139,6 +139,13 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 WHATSAPP_WEBHOOK_SECRET = config('WHATSAPP_WEBHOOK_SECRET', default='')
 INSTAGRAM_WEBHOOK_SECRET = config('INSTAGRAM_WEBHOOK_SECRET', default='')
 
+MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
+MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET', default='')
+MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='')
+MPESA_PASSKEY = config('MPESA_PASSKEY', default='')
+MPESA_ENV = config('MPESA_ENV', default='sandbox')
+BASE_URL = config('BASE_URL', default='http://localhost:8000')
+
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
     'API_KEY': config('CLOUDINARY_API_KEY', default=''),

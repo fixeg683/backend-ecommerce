@@ -5,6 +5,12 @@ from datetime import datetime
 from django.conf import settings
 
 
+def get_mpesa_base_url():
+    if getattr(settings, 'MPESA_ENV', 'sandbox') == 'production':
+        return "https://api.safaricom.co.ke"
+    return "https://sandbox.safaricom.co.ke"
+
+
 def format_phone(phone):
     """Normalise phone to 254XXXXXXXXX format."""
     phone = str(phone).strip().replace(' ', '').replace('+', '')
@@ -25,7 +31,8 @@ def get_access_token():
     if not settings.MPESA_CONSUMER_KEY or not settings.MPESA_CONSUMER_SECRET:
         return None, "M-Pesa credentials not configured on server"
 
-    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    base_url = get_mpesa_base_url()
+    url = f"{base_url}/oauth/v1/generate?grant_type=client_credentials"
     try:
         res = requests.get(
             url,
@@ -75,9 +82,10 @@ def initiate_mpesa_payment(phone, amount, order_id):
 
     print(f"[MPESA] STK Push → phone={phone}, amount={amount}, order={order_id}, callback={callback_url}")
 
+    headers = {"Authorization": f"Bearer {token}"}
     try:
         response = requests.post(
-            "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            f"{get_mpesa_base_url()}/mpesa/stkpush/v1/processrequest",
             json=payload,
             headers=headers,
             timeout=15
@@ -113,9 +121,10 @@ def verify_mpesa_payment(checkout_request_id):
         "CheckoutRequestID": checkout_request_id,
     }
 
+    headers = {"Authorization": f"Bearer {token}"}
     try:
         response = requests.post(
-            "https://api.safaricom.co.ke/mpesa/stkpush/v1/querystatus",
+            f"{get_mpesa_base_url()}/mpesa/stkpush/v1/querystatus",
             json=payload,
             headers=headers,
             timeout=15
