@@ -64,6 +64,11 @@ def initiate_mpesa_payment(phone, amount, order_id):
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     password = _make_password(timestamp)
 
+    if not settings.BASE_URL:
+        return {"error": "BASE_URL is not configured on the server"}
+    if not settings.BASE_URL.startswith("https://"):
+        return {"error": f"Invalid BASE_URL configured: '{settings.BASE_URL}'. It must start with https://"}
+
     callback_url = f"{settings.BASE_URL.rstrip('/')}/api/payments/callback/"
 
     payload = {
