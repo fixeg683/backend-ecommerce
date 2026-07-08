@@ -353,12 +353,13 @@ def verify_payment(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if str(result.get('ResultCode', '')) == 'pending':
+    if str(result.get('ResultCode', '')) == 'pending' or result.get('errorCode') == '500.001.1001':
         return Response({"success": False, "confirmed": False, "message": "Payment still processing"})
 
     if str(result.get('ResultCode', '')) in ('0', '0.0'):
         order.is_paid = True
         order.status = 'Completed'
+        order.items.all().update(purchased=True)
         order.save()
         return Response({"success": True, "confirmed": True, "order_id": order.id})
 
