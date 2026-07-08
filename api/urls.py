@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .serializers import EmailTokenObtainPairSerializer
 from .views import (
     my_paid_product_ids,
     ProductViewSet,
@@ -31,7 +32,7 @@ urlpatterns = [
     path('reset-admin/', reset_admin, name='reset-admin'),
 
     # JWT — must live here inside api/urls.py; core/urls.py paths are shadowed by include('api.urls')
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/', TokenObtainPairView.as_view(serializer_class=EmailTokenObtainPairSerializer), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # Downloads

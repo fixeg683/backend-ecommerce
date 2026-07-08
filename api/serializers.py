@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import Product, Category, Order, OrderItem
 
 
@@ -114,3 +115,16 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model  = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
+
+
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'] = serializers.CharField()
+        if 'username' in self.fields:
+            del self.fields['username']
+
+    def validate(self, attrs):
+        if 'email' in attrs:
+            attrs['username'] = attrs.pop('email')
+        return super().validate(attrs)
