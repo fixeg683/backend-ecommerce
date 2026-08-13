@@ -42,6 +42,20 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
 
+    def list(self, request, *args, **kwargs):
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            logger.error("[ProductViewSet.list ERROR] %s", traceback.format_exc())
+            return Response({"error": "Failed to load products"}, status=500)
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except Exception as e:
+            logger.error("[ProductViewSet.retrieve ERROR] %s", traceback.format_exc())
+            return Response({"error": "Failed to load product"}, status=500)
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -176,9 +190,13 @@ def login_user(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_products(request):
-    products = Product.objects.all().order_by('-id')
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    try:
+        products = Product.objects.all().order_by('-id')
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        logger.error("[get_products ERROR] %s", traceback.format_exc())
+        return Response({"error": "Failed to load products"}, status=500)
 
 # -------------------------
 # PAYMENTS

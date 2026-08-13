@@ -68,7 +68,22 @@ class ProductSerializer(serializers.ModelSerializer):
         Returns the best available download URL for paid users.
         Priority: download_url_override > ebook_file > file
         """
-        return obj.downloadable_file
+        try:
+            url = obj.downloadable_file
+        except Exception:
+            return None
+
+        if not url:
+            return None
+
+        if isinstance(url, str) and url.startswith(('http://', 'https://')):
+            return url
+
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+
+        return url
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

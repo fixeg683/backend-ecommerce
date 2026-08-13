@@ -22,3 +22,23 @@ class ProductSerializerImageTests(SimpleTestCase):
         self.assertEqual(serializer.data['img'], expected)
         self.assertEqual(serializer.data['image_url'], expected)
         self.assertEqual(serializer.data['imageUrl'], expected)
+
+    def test_download_url_returns_none_when_download_property_raises(self):
+        class ExplodingProduct:
+            name = 'Broken Product'
+            description = 'A test product'
+            price = '19.99'
+            product_type = 'software'
+            is_ebook = False
+            image = None
+            file = None
+            download_url_override = None
+            category = Category(name='Software')
+
+            @property
+            def downloadable_file(self):
+                raise RuntimeError('Cloudinary config is broken')
+
+        serializer = ProductSerializer(ExplodingProduct(), context={})
+
+        self.assertIsNone(serializer.data['download_url'])
