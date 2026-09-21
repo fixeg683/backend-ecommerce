@@ -14,11 +14,8 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '.ngrok-free.app',
-    'backend-ecommerce-3-2hqt.onrender.com',
-    '.onrender.com',          # covers any future Render subdomains
-    os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''),  # Render sets this automatically
+    '.onrender.com',
 ]
-ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]  # drop empty strings
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -124,12 +121,19 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
+# Production CORS: allow the deployed Nexusmall frontend and local Vite development.
+CORS_ALLOWED_ORIGINS = [
     'https://nexusmall.sbs',
     'https://www.nexusmall.sbs',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://nexusmall.sbs',
+    'https://www.nexusmall.sbs',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 
 CHANNEL_LAYERS = {
