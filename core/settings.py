@@ -22,7 +22,6 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
-    'django.contrib.messages',
     'cloudinary_storage',
     'django.contrib.staticfiles',
     'corsheaders',
@@ -35,8 +34,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -121,10 +120,12 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# Production CORS: allow the deployed Nexusmall frontend and local Vite development.
+# Production CORS: allow the deployed Nexusmall frontend,
+# the current Vercel deployment, and local Vite development.
 CORS_ALLOWED_ORIGINS = [
     'https://nexusmall.sbs',
     'https://www.nexusmall.sbs',
+    'https://nexusapp-theta.vercel.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
 ]
@@ -132,6 +133,7 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     'https://nexusmall.sbs',
     'https://www.nexusmall.sbs',
+    'https://nexusapp-theta.vercel.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
 ]
