@@ -2,6 +2,7 @@ import os
 import hmac
 import json
 import logging
+import time
 import traceback
 
 from rest_framework import viewsets, status
@@ -12,6 +13,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, get_user_model
+from django.db import connections
+from django.db.utils import OperationalError, InterfaceError
 
 from .models import Product, Category, Order, OrderItem
 from .serializers import (
@@ -23,6 +26,50 @@ from .serializers import (
 from .mpesa_utils import initiate_mpesa_payment, verify_mpesa_payment
 
 logger = logging.getLogger(__name__)
+
+# -------------------------
+# HEALTH CHECK
+# -------------------------
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Lightweight health/readiness probe: GET /api/health/
+      200 {"status": "ok", "database": "ok", "latency_ms": <float>}
+      503 {"status": "error", "database": "unreachable", "detail": "<message>"}
+
+    Runs a real query (not just ensure_connection()) so a pooler that
+    accepts TCP but rejects the tenant/auth is still caught.
+    """
+    db_status = "ok"
+    detail = None
+    started = time.monotonic()
+
+    try:
+        with connections['default'].cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except (OperationalError, InterfaceError) as e:
+        db_status = "unreachable"
+        detail = str(e)
+    except Exception as e:
+        db_status = "error"
+        detail = str(e)
+
+    latency_ms = round((time.monotonic() - started) * 1000, 2)
+
+    if db_status != "ok":
+        logger.error("[HEALTH CHECK] database=%s detail=%s", db_status, detail)
+        return Response(
+            {"status": "error", "database": db_status, "detail": detail},
+            status=503,
+        )
+
+    return Response(
+        {"status": "ok", "database": "ok", "latency_ms": latency_ms},
+        status=200,
+    )
 
 # -------------------------
 # ROOT

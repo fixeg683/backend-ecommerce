@@ -8,6 +8,7 @@ from .views import (
     CategoryViewSet,
     OrderViewSet,
     api_root,
+    health_check,
     register_user,
     current_user,
     my_downloads,
@@ -25,6 +26,7 @@ router.register(r'orders', OrderViewSet, basename='orders')
 
 urlpatterns = [
     path('', api_root),
+    path('health/', health_check, name='health-check'),
 
     # Auth
     path('register/', register_user, name='register'),
