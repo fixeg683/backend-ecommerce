@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
 from django.core.files.storage import FileSystemStorage
+from django.conf import settings
 
 try:
     from cloudinary_storage.storage import MediaCloudinaryStorage, RawMediaCloudinaryStorage
@@ -48,6 +49,20 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class EmailVerification(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='email_verification',
+    )
+    token = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Email verification for {self.user}'
 
 
 class Product(models.Model):

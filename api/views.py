@@ -4,6 +4,8 @@ import json
 import logging
 import time
 import traceback
+import secrets
+from datetime import timedelta
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, action
@@ -15,8 +17,10 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, get_user_model
 from django.db import connections
 from django.db.utils import OperationalError, InterfaceError
+from django.utils import timezone
 
-from .models import Product, Category, Order, OrderItem
+from .models import Product, Category, Order, OrderItem, EmailVerification
+from .services.email_service import send_account_confirmation_email
 from .serializers import (
     ProductSerializer,
     CategorySerializer,
@@ -146,7 +150,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    """Create a new account and return a JWT pair, matching RegisterSerializer."""
+    """Create an inactive account and send its email verification link."""
     email = request.data.get('email', '').strip()
     password = request.data.get('password', '')
     username = request.data.get('username') or email
@@ -169,19 +173,56 @@ def register_user(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user = User.objects.create_user(username=username, email=email, password=password)
-    refresh = RefreshToken.for_user(user)
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password,
+        is_active=False,
+    )
+    verification = EmailVerification.objects.create(
+        user=user,
+        token=secrets.token_hex(32),
+        expires_at=timezone.now() + timedelta(hours=24),
+    )
+    email_result = send_account_confirmation_email(
+        to_email=user.email,
+        user_name=user.first_name or user.username,
+        token=verification.token,
+    )
+
+    if not email_result['success']:
+        logger.error('Registration email could not be sent to %s', user.email)
+        user.delete()
+        return Response(
+            {'message': 'Account created, but the verification email could not be sent. Please try again later.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
     return Response({
-        "message": "User created successfully",
-        "access": str(refresh.access_token),
-        "refresh": str(refresh),
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-        },
+        "message": "Registration successful! Please check your email to activate your account.",
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def verify_email(request):
+    token = request.query_params.get('token')
+    if not token:
+        return Response({'message': 'Token is missing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    verification = EmailVerification.objects.select_related('user').filter(token=token).first()
+    if not verification or verification.expires_at <= timezone.now():
+        return Response(
+            {'message': 'Verification token is invalid or has expired.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = verification.user
+    user.is_active = True
+    user.save(update_fields=['is_active'])
+    verification.delete()
+
+    return Response({'message': 'Account verified successfully! You can now log in.'})
 
 
 @api_view(['GET'])

@@ -158,6 +158,10 @@ MPESA_PASSKEY = config('MPESA_PASSKEY', default='')
 MPESA_ENV = config('MPESA_ENV', default='sandbox')
 BASE_URL = config('BASE_URL', default='http://localhost:8000')
 
+RESEND_API_KEY = config('RESEND_API_KEY', default='')
+EMAIL_FROM = config('EMAIL_FROM', default='Nexus Mall <support@nexusmall.sbs>')
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=''),
     'API_KEY': config('CLOUDINARY_API_KEY', default=''),
