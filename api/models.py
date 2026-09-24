@@ -1,8 +1,12 @@
+import random
+from datetime import timedelta
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
+from django.utils import timezone
 
 try:
     from cloudinary_storage.storage import MediaCloudinaryStorage, RawMediaCloudinaryStorage
@@ -57,9 +61,18 @@ class EmailVerification(models.Model):
         on_delete=models.CASCADE,
         related_name='email_verification',
     )
-    token = models.CharField(max_length=64, unique=True)
-    expires_at = models.DateTimeField()
+    token = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    code = models.CharField(max_length=6, blank=True, null=True)
+    expires_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def generate_code(self):
+        code = str(random.randint(100000, 999999))
+        self.code = code
+        self.token = code
+        self.expires_at = timezone.now() + timedelta(minutes=10)
+        self.save(update_fields=['code', 'token', 'expires_at'])
+        return code
 
     def __str__(self):
         return f'Email verification for {self.user}'

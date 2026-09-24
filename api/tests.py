@@ -1,8 +1,40 @@
-from django.test import SimpleTestCase
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
-from .models import Category, Product
+from .models import Category, Product, EmailVerification
 from .serializers import ProductSerializer
+
+
+class EmailVerificationCodeFlowTests(TestCase):
+    def test_registration_and_verification_use_six_digit_code(self):
+        response = self.client.post(
+            '/api/register/',
+            {'username': 'alice', 'email': 'alice@example.com', 'password': 'strongpass123'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+
+        user = get_user_model().objects.get(email='alice@example.com')
+        self.assertFalse(user.is_active)
+
+        verification = EmailVerification.objects.get(user=user)
+        self.assertIsNotNone(verification.code)
+        self.assertEqual(len(verification.code), 6)
+        self.assertGreater(verification.expires_at, timezone.now())
+
+        verify_response = self.client.post(
+            '/api/verify-code/',
+            {'email': user.email, 'code': verification.code},
+            format='json',
+        )
+
+        self.assertEqual(verify_response.status_code, 200)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertFalse(EmailVerification.objects.filter(user=user).exists())
 
 
 class ProductSerializerImageTests(SimpleTestCase):

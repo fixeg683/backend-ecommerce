@@ -5,6 +5,7 @@ import logging
 import time
 import traceback
 import secrets
+import random
 from datetime import timedelta
 
 from rest_framework import viewsets, status
@@ -20,7 +21,7 @@ from django.db.utils import OperationalError, InterfaceError
 from django.utils import timezone
 
 from .models import Product, Category, Order, OrderItem, EmailVerification
-from .services.email_service import send_account_confirmation_email
+from .services.email_service import send_account_confirmation_email, send_verification_code_email
 from .serializers import (
     ProductSerializer,
     CategorySerializer,
@@ -147,10 +148,16 @@ class OrderViewSet(viewsets.ModelViewSet):
 # AUTH
 # -------------------------
 
+def _create_verification_code(user):
+    verification, _ = EmailVerification.objects.get_or_create(user=user)
+    code = verification.generate_code()
+    return verification, code
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    """Create an inactive account and send its email verification link."""
+    """Create an inactive account and send a 6-digit verification code."""
     email = request.data.get('email', '').strip()
     password = request.data.get('password', '')
     username = request.data.get('username') or email
@@ -179,28 +186,78 @@ def register_user(request):
         password=password,
         is_active=False,
     )
-    verification = EmailVerification.objects.create(
-        user=user,
-        token=secrets.token_hex(32),
-        expires_at=timezone.now() + timedelta(hours=24),
-    )
-    email_result = send_account_confirmation_email(
+    verification, code = _create_verification_code(user)
+    email_result = send_verification_code_email(
         to_email=user.email,
         user_name=user.first_name or user.username,
-        token=verification.token,
+        code=code,
     )
 
     if not email_result['success']:
         logger.error('Registration email could not be sent to %s', user.email)
+        verification.delete()
         user.delete()
         return Response(
-            {'message': 'Account created, but the verification email could not be sent. Please try again later.'},
+            {'message': 'Account created, but the verification code could not be sent. Please try again later.'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
     return Response({
-        "message": "Registration successful! Please check your email to activate your account.",
+        "message": "Registration successful! Please check your email for the verification code.",
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_code(request):
+    email = request.data.get('email', '').strip()
+    code = str(request.data.get('code', '')).strip()
+
+    if not email or not code:
+        return Response({"message": "Email and code are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    verification = EmailVerification.objects.select_related('user').filter(user__email=email).first()
+    if not verification or verification.code != code:
+        return Response({"message": "Invalid verification code."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not verification.expires_at or verification.expires_at <= timezone.now():
+        return Response({"message": "Verification code has expired. Please request a new one."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = verification.user
+    user.is_active = True
+    user.save(update_fields=['is_active'])
+    verification.delete()
+
+    return Response({'message': 'Account verified successfully! You can now log in.'})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_code(request):
+    email = request.data.get('email', '').strip()
+    if not email:
+        return Response({"message": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({"message": "Account not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if user.is_active:
+        return Response({"message": "This account is already verified."}, status=status.HTTP_400_BAD_REQUEST)
+
+    verification, code = _create_verification_code(user)
+    email_result = send_verification_code_email(
+        to_email=user.email,
+        user_name=user.first_name or user.username,
+        code=code,
+    )
+
+    if not email_result['success']:
+        logger.error('Verification code resent email failed for %s', user.email)
+        return Response({"message": "Could not resend the verification code. Please try again later."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    return Response({"message": "A new verification code has been sent."})
 
 
 @api_view(['GET'])
@@ -211,7 +268,7 @@ def verify_email(request):
         return Response({'message': 'Token is missing.'}, status=status.HTTP_400_BAD_REQUEST)
 
     verification = EmailVerification.objects.select_related('user').filter(token=token).first()
-    if not verification or verification.expires_at <= timezone.now():
+    if not verification or not verification.expires_at or verification.expires_at <= timezone.now():
         return Response(
             {'message': 'Verification token is invalid or has expired.'},
             status=status.HTTP_400_BAD_REQUEST,

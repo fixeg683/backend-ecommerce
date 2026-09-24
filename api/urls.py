@@ -10,6 +10,8 @@ from .views import (
     api_root,
     health_check,
     register_user,
+    verify_code,
+    resend_code,
     verify_email,
     current_user,
     my_downloads,
@@ -31,6 +33,8 @@ urlpatterns = [
 
     # Auth
     path('register/', register_user, name='register'),
+    path('verify-code/', verify_code, name='verify-code'),
+    path('resend-code/', resend_code, name='resend-code'),
     path('verify-email/', verify_email, name='verify-email'),
     path('me/', current_user),
     path('reset-admin/', reset_admin, name='reset-admin'),
