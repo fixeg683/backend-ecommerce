@@ -16,7 +16,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, get_user_model
-from django.db import connections
+from django.db import connections, transaction
 from django.db.utils import OperationalError, InterfaceError
 from django.utils import timezone
 
@@ -180,21 +180,29 @@ def register_user(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user = User.objects.create_user(
-        username=username,
-        email=email,
-        password=password,
-        is_active=False,
-    )
-    verification, code = _create_verification_code(user)
-    email_result = send_verification_code_email(
-        to_email=user.email,
-        user_name=user.first_name or user.username,
-        code=code,
-    )
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                is_active=False,
+            )
+            verification, code = _create_verification_code(user)
+            email_result = send_verification_code_email(
+                to_email=user.email,
+                user_name=user.first_name or user.username,
+                code=code,
+            )
+    except Exception:
+        logger.exception('Registration failed before verification email dispatch for email=%s username=%s', email, username)
+        return Response(
+            {'message': 'Registration failed. Please try again later.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     if not email_result['success']:
-        logger.error('Registration email could not be sent to %s', user.email)
+        logger.error('Registration email could not be sent to %s: %s', user.email, email_result.get('error'))
         verification.delete()
         user.delete()
         return Response(

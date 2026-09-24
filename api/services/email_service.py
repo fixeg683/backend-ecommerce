@@ -10,9 +10,13 @@ logger = logging.getLogger(__name__)
 
 def send_verification_code_email(*, to_email, user_name, code):
     """Send a one-time 6-digit verification code via Resend."""
-    if 'test' in sys.argv or settings.DEBUG or not settings.RESEND_API_KEY:
-        logger.warning('Resend is disabled in test/debug mode or no API key is configured; skipping verification email for %s', to_email)
+    if 'test' in sys.argv or settings.DEBUG:
+        logger.warning('Resend is disabled in test/debug mode; skipping verification email for %s', to_email)
         return {'success': True, 'data': {'mock': True, 'code': code}}
+
+    if not settings.RESEND_API_KEY:
+        logger.error('Resend is not configured; verification email was not sent to %s', to_email)
+        return {'success': False, 'error': 'RESEND_API_KEY is not configured'}
 
     safe_name = html.escape(user_name or 'there')
     payload = {
@@ -52,9 +56,13 @@ def send_verification_code_email(*, to_email, user_name, code):
 
 def send_account_confirmation_email(*, to_email, user_name, token):
     """Backward-compatible link-based email helper."""
-    if 'test' in sys.argv or settings.DEBUG or not settings.RESEND_API_KEY:
-        logger.warning('Resend is disabled in test/debug mode or no API key is configured; skipping confirmation email for %s', to_email)
+    if 'test' in sys.argv or settings.DEBUG:
+        logger.warning('Resend is disabled in test/debug mode; skipping confirmation email for %s', to_email)
         return {'success': True, 'data': {'mock': True, 'token': token}}
+
+    if not settings.RESEND_API_KEY:
+        logger.error('Resend is not configured; confirmation email was not sent to %s', to_email)
+        return {'success': False, 'error': 'RESEND_API_KEY is not configured'}
 
     frontend_url = settings.FRONTEND_URL.rstrip('/')
     confirmation_url = f'{frontend_url}/verify-email?token={token}'
