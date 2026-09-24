@@ -158,13 +158,26 @@ def _create_verification_code(user):
 @permission_classes([AllowAny])
 def register_user(request):
     """Create an inactive account and send a 6-digit verification code."""
-    email = request.data.get('email', '').strip()
-    password = request.data.get('password', '')
-    username = request.data.get('username') or email
+    email_value = request.data.get('email')
+    password_value = request.data.get('password')
+    username_value = request.data.get('username')
+    email = email_value.strip() if isinstance(email_value, str) else ''
+    password = password_value if isinstance(password_value, str) else ''
+    username = username_value.strip() if isinstance(username_value, str) else ''
+    username = username or email
 
     if not email or not password:
+        missing_fields = [
+            field for field, value in (
+                ('email', email),
+                ('password', password),
+            ) if not value
+        ]
         return Response(
-            {"message": "Email and password are required."},
+            {
+                "message": "Email and password are required.",
+                "missing_fields": missing_fields,
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
