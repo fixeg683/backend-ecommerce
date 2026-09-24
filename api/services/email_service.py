@@ -38,6 +38,7 @@ def send_verification_code_email(*, to_email, user_name, code):
     }
 
     try:
+        logger.info('Dispatching verification email through Resend to %s', to_email)
         response = requests.post(
             'https://api.resend.com/emails',
             headers={
@@ -48,7 +49,9 @@ def send_verification_code_email(*, to_email, user_name, code):
             timeout=10,
         )
         response.raise_for_status()
-        return {'success': True, 'data': response.json()}
+        data = response.json()
+        logger.info('Resend accepted verification email for %s: %s', to_email, data)
+        return {'success': True, 'data': data}
     except (requests.RequestException, ValueError) as error:
         logger.exception('Error sending verification code via Resend')
         return {'success': False, 'error': error}
